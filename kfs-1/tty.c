@@ -89,10 +89,9 @@ void tty_insert_input_char(char c)
 void tty_delete_input_char(void)
 {
 	if (g_tty_input_len > 0) {
-		const size_t idx = g_tty_row * VGA_WIDTH + g_tty_column - 1; 
-		g_tty_buffer[idx] = ' ';
 		g_tty_input_len--;
 		g_tty_column--;
+		tty_putentryat(' ', g_tty_color, g_tty_column, g_tty_row);
 		tty_update_cursor();
 	}
 }
