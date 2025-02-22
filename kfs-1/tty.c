@@ -12,8 +12,14 @@ uint8_t		g_tty_color;
 uint16_t	*g_tty_buffer;
 size_t		g_tty_input_len;
 
+/*
+ * This function disables the blink bit at the start of terminal initialization,
+ * allowing the use of 16 background colors. However, some emulators may not 
+ * emulate blinking, and in such cases, the terminal supports the default 16 colors.
+ */
 void tty_init(void)
 {
+	vga_enable_16color_background();
 	g_tty_row = 0;
 	g_tty_column = 0;
 	g_tty_input_len = 0;

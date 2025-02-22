@@ -12,6 +12,12 @@
 #define CURSOR_HIGH_LOCATION	0x0E
 #define CURSOR_LOW_LOCATION	0x0F
 
+#define VGA_INPUT_STATUS_PORT	0x3DA
+#define VGA_ADDRESS_DATA_PORT	0x3C0
+#define VGA_DATA_READ_PORT	0x3C1
+#define VGA_ATTR_IDX		0x10
+#define VGA_ATTR_BLINK_BIT	3
+
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
 	VGA_COLOR_BLUE = 1,
@@ -40,5 +46,8 @@ static inline uint16_t vga_entry(unsigned char uc, uint8_t color)
 {
 	return (uint16_t) uc | (uint16_t) color << 8;
 }
+
+void vga_enable_16color_background(void);
+void vga_enable_blink(void);
 
 #endif

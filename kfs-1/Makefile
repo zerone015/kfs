@@ -9,7 +9,7 @@ LFLAGS = -ffreestanding -O2 -nostdlib
 
 LINKER = linker.ld
 
-SRCS-C = kernel.c tty.c printf.c putchar.c strlen.c pic.c idt.c keyboard_handle.c
+SRCS-C = kernel.c tty.c printf.c putchar.c strlen.c pic.c idt.c keyboard_handle.c vga.c
 SRCS-S = boot.s outb.s inb.s idt_load.s keyboard_handler.s
 OBJS = $(SRCS-C:%.c=%.o) $(SRCS-S:%.s=%.o)
 
