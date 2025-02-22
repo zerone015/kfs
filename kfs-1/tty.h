@@ -1,7 +1,12 @@
 #ifndef _KERNEL_TTY_H
 #define _KERNEL_TTY_H
 
-#define TTY_PROMPT "yoson$> "
+#define TTY_PROMPT		"yoson$> "
+#define TAB_SIZE		4
+#define LEFT_SHIFT_PRESS	0x2A
+#define RIGHT_SHIFT_PRESS	0x36
+#define LEFT_SHIFT_RELEASE	0xAA
+#define RIGHT_SHIFT_RELEASE	0xB6
 
 #include <stddef.h>
 #include <stdint.h>
