@@ -18,6 +18,9 @@
 #define VGA_ATTR_IDX		0x10
 #define VGA_ATTR_BLINK_BIT	3
 
+#define VGA_ENABLE_BLINK	1
+#define VGA_ENABLE_16COLOR	0
+
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
 	VGA_COLOR_BLUE = 1,
@@ -47,7 +50,6 @@ static inline uint16_t vga_entry(unsigned char uc, uint8_t color)
 	return (uint16_t) uc | (uint16_t) color << 8;
 }
 
-void vga_enable_16color_background(void);
-void vga_enable_blink(void);
+void vga_set_blink(int flag);
 
 #endif

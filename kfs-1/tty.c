@@ -19,7 +19,7 @@ size_t		g_tty_input_len;
  */
 void tty_init(void)
 {
-	vga_enable_16color_background();
+	vga_set_blink(VGA_ENABLE_16COLOR);
 	g_tty_row = 0;
 	g_tty_column = 0;
 	g_tty_input_len = 0;
