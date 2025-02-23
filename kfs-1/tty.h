@@ -1,19 +1,34 @@
 #ifndef _KERNEL_TTY_H
 #define _KERNEL_TTY_H
 
-#define TTY_PROMPT		"yoson$> "
+#define TTY_HELLO  "   ___  _____                           _  \n" \
+              "  /   |/ __  \\                         | | \n" \
+              " / /| |`' / /' ___   ___   ___   _   _ | | \n" \
+              "/ /_| |  / /  / __| / _ \\ / _ \\ | | | || | \n" \
+              "\\___  |./ /___\\__ \\|  __/| (_) || |_| || | \n" \
+              "    |_/\\_____/|___/ \\___| \\___/  \\__,_||_| \n" \
+              "                                           \n" \
+              "                                                   by yoson\n"
+#define TTY_MAX			6
+#define TTY_PROMPT		"$> "
 #define TAB_SIZE		4
-#define LEFT_SHIFT_PRESS	0x2A
-#define RIGHT_SHIFT_PRESS	0x36
-#define LEFT_SHIFT_RELEASE	0xAA
-#define RIGHT_SHIFT_RELEASE	0xB6
 
 #include <stddef.h>
 #include <stdint.h>
+#include "vga.h"
+
+struct tty_context {
+	uint16_t buf[VGA_SIZE];
+	size_t row;
+	size_t column;
+	uint8_t color;
+	size_t input_length;
+};
 
 void		tty_init(void);
+void		tty_putentryat(char c, uint8_t color, size_t x, size_t y);
 void		tty_set_color(uint8_t color);
-void		tty_update_cursor(void);
+void		tty_change(size_t target_tty_idx);
 void		tty_insert_input_char(char c);
 void		tty_delete_input_char(void);
 void		tty_flush_input(void);

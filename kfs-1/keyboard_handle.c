@@ -89,6 +89,9 @@ void keyboard_handle(void)
 		if (keycode == LEFT_SHIFT_PRESS || keycode == RIGHT_SHIFT_PRESS) {
 			g_shift_flag = 1;
 		}
+		else if (keycode >= F1_PRESS && keycode <= F6_PRESS) {
+			tty_change(keycode - F1_PRESS);
+		}
 		else if (c == '\b') {
 			tty_delete_input_char();	
 		}
