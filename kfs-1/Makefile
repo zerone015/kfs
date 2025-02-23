@@ -3,30 +3,39 @@ NAME = yosonos.bin
 CC = i686-elf-gcc
 AS = nasm
 
-CFLAGS = -std=gnu99 -ffreestanding -O2 -Wall -Wextra
+CFLAGS = -std=gnu99 -ffreestanding -O2 -Wall -Wextra -I$(HEADER-DIR)
 SFLAGS = -felf32
 LFLAGS = -ffreestanding -O2 -nostdlib
 
 LINKER = linker.ld
 
-SRCS-C = kernel.c tty.c printf.c putchar.c strlen.c pic.c idt.c keyboard_handle.c vga.c
-SRCS-S = boot.s outb.s inb.s idt_load.s keyboard_handler.s
-OBJS = $(SRCS-C:%.c=%.o) $(SRCS-S:%.s=%.o)
+HEADER-DIR = ./include
+SRC-DIR = ./src
+OBJ-DIR = ./build
+ASM-DIR = ./asm
 
-%.o: %.s
+SRC = $(SRC-DIR)/kernel.c $(SRC-DIR)/tty.c $(SRC-DIR)/printf.c $(SRC-DIR)/putchar.c $(SRC-DIR)/strlen.c $(SRC-DIR)/pic.c $(SRC-DIR)/idt.c $(SRC-DIR)/keyboard_handle.c $(SRC-DIR)/vga.c
+ASM = $(ASM-DIR)/boot.s $(ASM-DIR)/outb.s $(ASM-DIR)/inb.s $(ASM-DIR)/idt_load.s $(ASM-DIR)/keyboard_handler.s
+OBJ = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.o) $(ASM:$(ASM-DIR)/%.s=$(OBJ-DIR)/%.o)
+
+$(OBJ-DIR)/%.o: $(ASM-DIR)/%.s
 	$(AS) $(SFLAGS) $< -o $@
-%.o: %.c
+
+$(OBJ-DIR)/%.o: $(SRC-DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-all: $(NAME)
+all: $(OBJ-DIR) $(NAME)
 
-$(NAME): $(OBJS) $(LINKER)
-	$(CC) -T $(LINKER) -o $@ $(LFLAGS) $(OBJS) -lgcc
+$(NAME): $(OBJ) $(LINKER)
+	$(CC) -T $(LINKER) -o $@ $(LFLAGS) $(OBJ) -lgcc
+
+$(OBJ-DIR):
+	mkdir -p $(OBJ-DIR)
 
 clean:
-	rm -f $(wildcard *.o)
+	rm -f $(wildcard $(OBJ-DIR)/*.o)
 
-fclean: clean 
+fclean: clean
 	rm -f $(NAME)
 
 .PHONY: all clean fclean
