@@ -5,13 +5,11 @@
 #include "tty.h"
 #include "string.h"
 
-static bool print(const char *data, size_t length) 
+static void print(const char *data, size_t length) 
 {
 	const unsigned char *bytes = (const unsigned char *) data;
 	for (size_t i = 0; i < length; i++)
-		if (putchar(bytes[i]) == EOF)
-			return false;
-	return true;
+		tty_putchar(bytes[i]);
 }
 
 int printf(const char *restrict format, ...)
@@ -32,8 +30,7 @@ int printf(const char *restrict format, ...)
 			if (maxrem < amount) {
 				return -1;
 			}
-			if (!print(format, amount))
-				return -1;
+			print(format, amount);
 			format += amount;
 			written += amount;
 			continue;
@@ -44,8 +41,7 @@ int printf(const char *restrict format, ...)
 			char c = (char) va_arg(parameters, int);
 			if (!maxrem) 
 				return -1;
-			if (!print(&c, sizeof(c)))
-				return -1;
+			print(&c, sizeof(c));
 			written++;
 		} else if (*format == 's') {
 			format++;
@@ -53,16 +49,14 @@ int printf(const char *restrict format, ...)
 			size_t len = strlen(str);
 			if (maxrem < len)
 				return -1;
-			if (!print(str, len))
-				return -1;
+			print(str, len);
 			written += len;
 		} else {
 			format = format_begun_at;
 			size_t len = strlen(format);
 			if (maxrem < len)
 				return -1;
-			if (!print(format, len))
-				return -1;
+			print(format, len);
 			written += len;
 			format += len;
 		}

@@ -14,7 +14,7 @@ SRC-DIR = ./src
 OBJ-DIR = ./build
 ASM-DIR = ./asm
 
-SRC = $(SRC-DIR)/kernel.c $(SRC-DIR)/tty.c $(SRC-DIR)/printf.c $(SRC-DIR)/putchar.c $(SRC-DIR)/strlen.c $(SRC-DIR)/pic.c $(SRC-DIR)/idt.c $(SRC-DIR)/keyboard_handle.c $(SRC-DIR)/vga.c
+SRC = $(SRC-DIR)/kernel.c $(SRC-DIR)/tty.c $(SRC-DIR)/printf.c $(SRC-DIR)/strlen.c $(SRC-DIR)/pic.c $(SRC-DIR)/idt.c $(SRC-DIR)/keyboard_handle.c $(SRC-DIR)/vga.c
 ASM = $(ASM-DIR)/boot.s $(ASM-DIR)/outb.s $(ASM-DIR)/inb.s $(ASM-DIR)/idt_load.s $(ASM-DIR)/keyboard_handler.s
 OBJ = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.o) $(ASM:$(ASM-DIR)/%.s=$(OBJ-DIR)/%.o)
 
