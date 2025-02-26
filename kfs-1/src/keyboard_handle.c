@@ -5,7 +5,7 @@
 #include "stdio.h"
 
 /* This is valid only for US QWERTY keyboards. */
-static const char g_key_map[128] =
+static const char key_map[128] =
 {
     0,  0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',   
   '\t', /* <-- Tab */
@@ -41,7 +41,7 @@ static const char g_key_map[128] =
 };
 
 /* This is valid only for US QWERTY keyboards. */
-static const char g_shift_key_map[128] =
+static const char shift_key_map[128] =
 {
     0,  0, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
   '\t', /* <-- Tab */
@@ -76,7 +76,7 @@ static const char g_shift_key_map[128] =
     0,  /* All other keys are undefined */
 };
 
-static uint8_t g_shift_flag = 0;
+static uint8_t shift_flag = 0;
 
 void keyboard_handle(void)
 {
@@ -85,9 +85,9 @@ void keyboard_handle(void)
 
 	keycode = inb(PS2CTRL_DATA_PORT);
 	if ((keycode & BREAKCODE_MASK) == 0) {
-		c = g_key_map[keycode];
+		c = key_map[keycode];
 		if (keycode == LEFT_SHIFT_PRESS || keycode == RIGHT_SHIFT_PRESS) {
-			g_shift_flag = 1;
+			shift_flag = 1;
 		}
 		else if (keycode >= F1_PRESS && keycode <= F6_PRESS) {
 			tty_change(keycode - F1_PRESS);
@@ -104,13 +104,13 @@ void keyboard_handle(void)
 				tty_insert_input_char(' ');
 		}
 		else if (c) {
-			if (g_shift_flag)
-				c = g_shift_key_map[keycode];
+			if (shift_flag)
+				c = shift_key_map[keycode];
 			tty_insert_input_char(c);
 		}
 	} else {
 		if (keycode == LEFT_SHIFT_RELEASE || keycode == RIGHT_SHIFT_RELEASE)
-			g_shift_flag = 0;
+			shift_flag = 0;
 	}
 	pic_send_eoi(KEYBOARD_IRQ);
 }
