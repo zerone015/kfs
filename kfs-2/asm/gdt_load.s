@@ -1,8 +1,8 @@
 section .text
 global gdt_load
 gdt_load:
-	mov edx, [esp + 4]
-	lgdt [edx]
+	mov eax, [esp + 4]
+	lgdt [eax]
 .gdt_reload_selector:
         jmp 0x08:.reload_cs
 .reload_cs:

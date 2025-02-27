@@ -1,18 +1,19 @@
 #include "gdt.h"
 
-struct gdt_entry gdt[GDT_SIZE];
-struct gdt_ptr *gdt_ptr = (struct gdt_ptr *)GDT_ADDR;
+struct gdt_entry *gdt = (struct gdt_entry *)GDT_BASE;
 
 void gdt_init(void)
 {
+	struct gdt_ptr gdt_ptr;
+
 	gdt_set_entry(0, 0, 0, 0, 0);
 	gdt_set_entry(1, 0xFFFFF, 0, GDT_CODE_PL0, GDT_FLAGS);
 	gdt_set_entry(2, 0xFFFFF, 0, GDT_DATA_PL0, GDT_FLAGS);
 	gdt_set_entry(3, 0xFFFFF, 0, GDT_CODE_PL3, GDT_FLAGS);
 	gdt_set_entry(4, 0xFFFFF, 0, GDT_DATA_PL3, GDT_FLAGS);
-	gdt_ptr->limit = sizeof(struct gdt_entry) * GDT_SIZE - 1;
-	gdt_ptr->base = (uint32_t)&gdt;
-	gdt_load((uint32_t)gdt_ptr);
+	gdt_ptr.limit = sizeof(struct gdt_entry) * GDT_SIZE - 1;
+	gdt_ptr.base = GDT_BASE;
+	gdt_load((uint32_t)&gdt_ptr);
 }
 
 void gdt_set_entry(size_t idx, uint32_t limit, uint32_t base, uint8_t access, uint8_t flags)

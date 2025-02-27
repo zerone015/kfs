@@ -18,12 +18,12 @@ stack_top:
 
 section .text
 global _start:function (_start.end - _start)
-extern kernel_main
+extern kmain
 _start:
 	mov esp, stack_top
 
 	cli
-	call kernel_main
+	call kmain
 	sti
 
 .hang:	hlt

@@ -29,8 +29,8 @@
 #define GDT_CODE_PL3 SEG_DESCTYPE(1) | SEG_PRES(1) | SEG_PRIV(3) | SEG_CODE_EXRD
 #define GDT_DATA_PL3 SEG_DESCTYPE(1) | SEG_PRES(1) | SEG_PRIV(3) | SEG_DATA_RDWR
 
-#define GDT_FLAGS 0x9
-#define GDT_ADDR 0x800
+#define GDT_FLAGS 0xC
+#define GDT_BASE 0x800
 
 #include <stdint.h>
 #include <stddef.h>
