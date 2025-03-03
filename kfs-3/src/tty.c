@@ -3,9 +3,9 @@
 #include <stdint.h>
 #include "tty.h"
 #include "vga.h"
-#include "string.h"
+#include "utils.h"
 #include "io.h"
-#include "stdio.h"
+#include "printk.h"
 
 static struct tty_context	tty[TTY_MAX];
 static size_t			cur_tty;
@@ -13,7 +13,6 @@ static uint16_t			*vga_buf;
 
 void tty_init(void)
 {
-	vga_init();
 	for (size_t i = 0; i < TTY_MAX; i++) {
 		tty[i].row = 0;
 		tty[i].column = 0;
@@ -21,11 +20,11 @@ void tty_init(void)
 		tty[i].color = vga_entry_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
 		vga_buf = tty[i].buf;
 		cur_tty = i;
-		printf(TTY_HELLO);
+		printk(TTY_HELLO);
 		tty[i].color = vga_entry_color(VGA_COLOR_RED, VGA_COLOR_BLACK);
-		printf("* Connected to tty%c *\n\n", i + '1');
+		printk("* Connected to tty%c *\n\n", i + '1');
 		tty[i].color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
-		printf(TTY_PROMPT);
+		printk(TTY_PROMPT);
 		for (size_t j = VGA_WIDTH * tty[i].row + tty[i].column; j < VGA_SIZE; j++)
 			vga_buf[j] = vga_entry(' ', tty[i].color);
 	}

@@ -2,7 +2,7 @@
 #include "tty.h"
 #include "pic.h"
 #include "io.h"
-#include "stdio.h"
+#include "printk.h"
 
 /* This is valid only for US QWERTY keyboards. */
 static const char key_map[128] =
@@ -76,10 +76,9 @@ static const char shift_key_map[128] =
     0,  /* All other keys are undefined */
 };
 
-static uint8_t shift_flag = 0;
-
 void keyboard_handle(void)
 {
+	static uint8_t shift_flag;
 	uint8_t keycode;
 	char c;
 
@@ -97,7 +96,7 @@ void keyboard_handle(void)
 		}
 		else if (c == '\n') {
 			tty_flush_input();
-			printf(TTY_PROMPT);
+			printk(TTY_PROMPT);
 		}
 		else if (c == '\t') {
 			for (size_t i = 0; i < TAB_SIZE; i++)

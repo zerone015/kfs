@@ -1,6 +1,6 @@
 #include "gdt.h"
 
-struct gdt_entry *gdt = (struct gdt_entry *)GDT_BASE;
+struct gdt_entry gdt[GDT_SIZE];
 
 void gdt_init(void)
 {
@@ -12,7 +12,7 @@ void gdt_init(void)
 	gdt_set_entry(3, 0xFFFFF, 0, GDT_CODE_PL3, GDT_FLAGS);
 	gdt_set_entry(4, 0xFFFFF, 0, GDT_DATA_PL3, GDT_FLAGS);
 	gdt_ptr.limit = sizeof(struct gdt_entry) * GDT_SIZE - 1;
-	gdt_ptr.base = GDT_BASE;
+	gdt_ptr.base = (uint32_t)&gdt;
 	gdt_load((uint32_t)&gdt_ptr);
 }
 

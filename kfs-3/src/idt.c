@@ -1,7 +1,6 @@
 #include "idt.h"
 #include "keyboard_handle.h"
 #include "pic.h"
-#include "stdio.h"
 
 struct idt_entry idt[IDT_SIZE];
 
@@ -9,10 +8,10 @@ void idt_init(void)
 {
 	struct idt_ptr idt_ptr;
 
-	idt_set_gate(KEYBOARD_INT, (uint32_t) keyboard_handler);
+	idt_set_gate(KEYBOARD_INT, (uint32_t)keyboard_handler);
 	idt_ptr.limit = (sizeof(struct idt_entry) * IDT_SIZE) - 1;
-	idt_ptr.base = (uint32_t) &idt;
-	idt_load((uint32_t) &idt_ptr);
+	idt_ptr.base = (uint32_t)&idt;
+	idt_load((uint32_t)&idt_ptr);
 }
 
 void idt_set_gate(int idx, uint32_t handler)

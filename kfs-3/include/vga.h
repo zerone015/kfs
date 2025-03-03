@@ -7,7 +7,7 @@
 #define VGA_WIDTH		80
 #define VGA_HEIGHT		25
 #define VGA_SIZE		(VGA_WIDTH * VGA_HEIGHT)
-#define VGA_MEMORY		0xB8000
+#define VGA_MEMORY		0xC03FF000
 
 #define CRTC_ADDRESS_PORT	0x3D4
 #define CRTC_DATA_PORT		0x3D5
