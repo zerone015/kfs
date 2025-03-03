@@ -6,9 +6,9 @@
 static void kinit(void)
 {
 	tty_init();
+	gdt_init();
 	idt_init();
 	pic_init();
-	gdt_init();
 }
 
 void kmain(void) 

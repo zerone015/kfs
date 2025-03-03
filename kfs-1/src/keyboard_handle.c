@@ -76,10 +76,9 @@ static const char shift_key_map[128] =
     0,  /* All other keys are undefined */
 };
 
-static uint8_t shift_flag = 0;
-
 void keyboard_handle(void)
 {
+	static uint8_t shift_flag;
 	uint8_t keycode;
 	char c;
 
