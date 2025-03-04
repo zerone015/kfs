@@ -2,7 +2,6 @@
 #define _UTILS_H
 
 #define CHECK_FLAG(flags,bit)   ((flags) & (1 << (bit)))
-#define CHAR_TO_DIGIT(c)	((c) - '0')
 
 #include <stdint.h>
 #include <stddef.h>

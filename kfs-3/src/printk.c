@@ -5,8 +5,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
-static void print_hex(va_list *ap, const char *base)
+static inline __attribute__((always_inline)) void print_hex(va_list *ap, const char *base)
 {
 	char buf[8];
 	unsigned int n;
@@ -17,7 +18,7 @@ static void print_hex(va_list *ap, const char *base)
 	tty_write(buf, len);
 }
 
-static void print_u_decimal(va_list *ap)
+static inline __attribute__((always_inline)) void print_u_decimal(va_list *ap)
 {
 	char buf[10];
 	unsigned int n;
@@ -29,7 +30,7 @@ static void print_u_decimal(va_list *ap)
 	tty_write(buf, len);
 }
 
-static void print_decimal(va_list *ap)
+static inline __attribute__((always_inline)) void print_decimal(va_list *ap)
 {
 	char buf[11];
 	int n;
@@ -45,7 +46,7 @@ static void print_decimal(va_list *ap)
 	tty_write(buf, len);
 }
 
-static void print_address(va_list *ap)
+static inline __attribute__((always_inline)) void print_address(va_list *ap)
 {
 	char buf[18];
 	size_t n;
@@ -58,7 +59,7 @@ static void print_address(va_list *ap)
 	tty_write(buf, len + 2);
 }
 
-static void print_str(va_list *ap)
+static inline __attribute__((always_inline)) void print_str(va_list *ap)
 {
 	char	*str;
 	size_t	len;
@@ -70,7 +71,7 @@ static void print_str(va_list *ap)
 	tty_write(str, len);
 }
 
-static void print_char(va_list *ap)
+static inline __attribute__((always_inline)) void print_char(va_list *ap)
 {
 	char	c;
 
@@ -78,13 +79,18 @@ static void print_char(va_list *ap)
 	tty_putchar(c);
 }
 
-void printk(const char *format, ...)
+static inline __attribute__((always_inline)) bool has_log_level(const char *format)
+{
+	return format[0] == '<' && format[1] >= '0' && format[1] <= '1' && format[2] == '>';
+}
+
+void printk(const char *__restrict format, ...)
 {
 	va_list	ap;
 
 	va_start(ap, format);
-	if (HAS_KERN_LOG_LEVEL(format)) {
-		switch (CHAR_TO_DIGIT(format[1])) {
+	if (has_log_level(format)) {
+		switch (format[1] - '0') {
 		case 0:
 			tty_set_color(vga_entry_color(VGA_COLOR_RED, VGA_COLOR_BLACK));
 		}
