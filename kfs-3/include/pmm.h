@@ -55,7 +55,10 @@ static inline void *frame_block_alloc(size_t size)
 	size_t block_size;
 	int order;
 	uint32_t *bitmap;
-	void *frame_block;
+	int order_count;
+	int bit_length;
+	int bit_count;
+	int bit_idx;
 
 	if (size > MAX_BLOCK_SIZE)
 		return NULL;
@@ -69,18 +72,34 @@ static inline void *frame_block_alloc(size_t size)
 		bitmap = buddy_allocator.free_area[order].bitmap;
 		while (!(*bitmap & 0xFFFFFFFF)) 
 			bitmap++;
-		frame_block = (bitmap - buddy_allocator.free_area[order].bitmap + __builtin_clz(*bitmap)) << PAGE_SHIFT; // 이렇게 하면 안된다 각 오더마다 비트당 크기가 다르다 수정해야함
+		bit_length = ((bitmap - buddy_allocator.free_area[order].bitmap) << 3) + __builtin_clz(*bitmap);
 		*bitmap ^= 0x80000000 >> __builtin_clz(*bitmap);
+		buddy_allocator.free_area[order].free_count--;
 	}
 	else {
-		order++;
-		while (order < MAX_ORDER && buddy_allocator.free_area[order].free_count == 0)
-			order++;
-		if (order == MAX_ORDER)
+		order_count = order + 1;
+		while (order_count < MAX_ORDER && buddy_allocator.free_area[order_count].free_count == 0)
+			order_count++;
+		if (order_count == MAX_ORDER)
 			return NULL;
-		// 이제 분할하고 주소를 찾아야한다..
+		bitmap = buddy_allocator.free_area[order_count].bitmap;
+		while (!(*bitmap & 0xFFFFFFFF)) 
+			bitmap++;
+		bit_length = ((bitmap - buddy_allocator.free_area[order_count].bitmap) << 3) + __builtin_clz(*bitmap);
+		*bitmap ^= 0x80000000 >> __builtin_clz(*bitmap);
+		buddy_allocator.free_area[order_count].free_count--;
+		while (order < order_count) {
+			order_count--;
+			bitmap = buddy_allocator.free_area[order_count].bitmap;
+			bit_length <<= 1;
+			bit_count = bit_length >> 5;
+			while (bit_count--)
+				bitmap++;
+			bit_idx = bit_length - ((bitmap - buddy_allocator.free_area[order_count].bitmap) << 3);
+			*bitmap ^= 0x80000000 >> (bit_idx + 1);
+			buddy_allocator.free_area[order_count].free_count++;
+		}
 	}
-	return frame_block;
+	return (void *)(bit_length << PAGE_SHIFT << order);
 }
-//페이지갯수 = 비트갯수 = 1kb개
 #endif
