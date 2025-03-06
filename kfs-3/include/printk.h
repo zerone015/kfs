@@ -4,6 +4,6 @@
 #define KERN_ERR	"<0>"
 #define KERN_INFO 	"<1>"
 
-void printk(const char *, ...);
+void printk(const char *__restrict, ...);
 
 #endif

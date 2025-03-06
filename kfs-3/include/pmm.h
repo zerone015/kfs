@@ -1,16 +1,29 @@
 #ifndef _PMM_H
 #define _PMM_H
 
-#define PAGE_SIZE		0x00001000
-#define PAGE_SHIFT		12
-#define MAX_BLOCK_SIZE	0x00020000
-#define MAX_ORDER		6
-
 #include <stdint.h>
 #include <stddef.h>
 
 extern struct frame_allocator frame_allocator;
 extern struct buddy_allocator buddy_allocator;
+
+#define PAGE_SIZE		0x00001000U
+#define PAGE_SHIFT		12
+#define MAX_BLOCK_SIZE	0x00020000U
+#define MAX_ORDER		6
+
+#define BIT_DISTANCE(begin, end) \
+    (((end) - (begin)) << 5)
+
+#define BIT_FIRST_SET_OFFSET(begin, end) \
+	((BIT_DISTANCE((begin), (end))) + __builtin_clz(*(end)))
+
+#define BIT_SET(bitmap, offset) \
+    do { *(bitmap) |= (0x80000000U >> (offset)); } while (0)
+	
+#define BIT_UNSET(bitmap, offset) \
+    do { *(bitmap) &= ~(0x80000000U >> (offset)); } while (0)
+
 
 struct buddy_order {
 	uint32_t *bitmap;
@@ -52,54 +65,34 @@ static inline void frame_free(void *addr)
 
 static inline void *frame_block_alloc(size_t size)
 {
-	size_t block_size;
 	int order;
 	uint32_t *bitmap;
-	int order_count;
-	int bit_length;
-	int bit_count;
-	int bit_idx;
+	int bit_offset;
 
 	if (size > MAX_BLOCK_SIZE)
 		return NULL;
 	order = 0;
-	block_size = PAGE_SIZE;
-	while (size > block_size) {
-		block_size <<= 1;
+	while (size > (PAGE_SIZE << order))
 		order++;
-	}
-	if (buddy_allocator.free_area[order].free_count > 0) {
-		bitmap = buddy_allocator.free_area[order].bitmap;
-		while (!(*bitmap & 0xFFFFFFFF)) 
-			bitmap++;
-		bit_length = ((bitmap - buddy_allocator.free_area[order].bitmap) << 3) + __builtin_clz(*bitmap);
-		*bitmap ^= 0x80000000 >> __builtin_clz(*bitmap);
-		buddy_allocator.free_area[order].free_count--;
-	}
-	else {
-		order_count = order + 1;
-		while (order_count < MAX_ORDER && buddy_allocator.free_area[order_count].free_count == 0)
-			order_count++;
-		if (order_count == MAX_ORDER)
-			return NULL;
-		bitmap = buddy_allocator.free_area[order_count].bitmap;
-		while (!(*bitmap & 0xFFFFFFFF)) 
-			bitmap++;
-		bit_length = ((bitmap - buddy_allocator.free_area[order_count].bitmap) << 3) + __builtin_clz(*bitmap);
-		*bitmap ^= 0x80000000 >> __builtin_clz(*bitmap);
-		buddy_allocator.free_area[order_count].free_count--;
-		while (order < order_count) {
-			order_count--;
-			bitmap = buddy_allocator.free_area[order_count].bitmap;
-			bit_length <<= 1;
-			bit_count = bit_length >> 5;
-			while (bit_count--)
+	for (int i = order; i < MAX_ORDER; i++) {
+		if (buddy_allocator.free_area[i].free_count > 0) {
+			bitmap = buddy_allocator.free_area[i].bitmap;
+			while (!(*bitmap)) 
 				bitmap++;
-			bit_idx = bit_length - ((bitmap - buddy_allocator.free_area[order_count].bitmap) << 3);
-			*bitmap ^= 0x80000000 >> (bit_idx + 1);
-			buddy_allocator.free_area[order_count].free_count++;
+			bit_offset = BIT_FIRST_SET_OFFSET(buddy_allocator.free_area[order].bitmap, bitmap);
+			BIT_UNSET(bitmap, __builtin_clz(*bitmap));
+			buddy_allocator.free_area[order].free_count--;
+			while (i > order) {
+				i--;
+				bit_offset <<= 1;
+				bitmap = buddy_allocator.free_area[i].bitmap;
+				BIT_SET(&bitmap[bit_offset >> 5], (bit_offset & 31) + 1);
+				buddy_allocator.free_area[i].free_count++;
+			}
+			return (void *)(bit_offset << PAGE_SHIFT << order);
 		}
 	}
-	return (void *)(bit_length << PAGE_SHIFT << order);
+	return NULL;
 }
+
 #endif

@@ -1,6 +1,9 @@
 #ifndef _GDT_H
 #define _GDT_H
 
+#include <stdint.h>
+#include <stddef.h>
+
 #define GDT_SIZE 5
 
 #define SEG_DESCTYPE(x)  ((x) << 0x04) // Descriptor type (0 for system, 1 for code/data)
@@ -31,9 +34,6 @@
 
 #define GDT_FLAGS 0xC
 #define GDT_BASE 0xC0000800
-
-#include <stdint.h>
-#include <stddef.h>
 
 struct gdt_entry {
     uint16_t limit_low;

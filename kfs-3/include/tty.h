@@ -1,6 +1,10 @@
 #ifndef _KERNEL_TTY_H
 #define _KERNEL_TTY_H
 
+#include <stddef.h>
+#include <stdint.h>
+#include "vga.h"
+
 #define TTY_HELLO  "   ___  _____                           _  \n" \
               "  /   |/ __  \\                         | | \n" \
               " / /| |`' / /' ___   ___   ___   _   _ | | \n" \
@@ -12,10 +16,6 @@
 #define TTY_MAX			6
 #define TTY_PROMPT		"$> "
 #define TAB_SIZE		4
-
-#include <stddef.h>
-#include <stdint.h>
-#include "vga.h"
 
 struct tty_context {
 	uint16_t buf[VGA_SIZE];
