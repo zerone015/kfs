@@ -24,17 +24,14 @@ boot_page_table1:
     resb 4096
 
 section .multiboot.text
-extern _kernel_start
 extern _kernel_end
 global _start
 _start:
     mov edi, boot_page_table1 - 0xC0000000
     mov esi, 0
-    mov ecx, 1023
+    mov ecx, 1024
 
 .loop_page_mapping:
-    cmp esi, _kernel_start
-    jl .skip_mapping
     cmp esi, _kernel_end - 0xC0000000
     jge .enable_paging
 
@@ -42,14 +39,11 @@ _start:
     or edx, 0x003
     mov [edi], edx
 
-.skip_mapping:
     add esi, 4096
     add edi, 4
     loop .loop_page_mapping
 
 .enable_paging:
-    mov dword [boot_page_table1 - 0xC0000000 + 1023 * 4], 0x000B8000 | 0x003
-
     mov dword [boot_page_directory - 0xC0000000], boot_page_table1 - 0xC0000000 + 0x003
     mov dword [boot_page_directory - 0xC0000000 + 768 * 4], boot_page_table1 - 0xC0000000 + 0x003
     
@@ -70,6 +64,7 @@ extern kmain
     mov ecx, cr3
     mov cr3, ecx
 
+    or ebx, 0xC0000000
     mov esp, stack_top
     sub esp, 16
     mov [esp], ebx
