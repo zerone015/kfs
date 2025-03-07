@@ -46,7 +46,8 @@ _start:
 .enable_paging:
     mov dword [boot_page_directory - 0xC0000000], boot_page_table1 - 0xC0000000 + 0x003
     mov dword [boot_page_directory - 0xC0000000 + 768 * 4], boot_page_table1 - 0xC0000000 + 0x003
-    
+    mov dword [boot_page_directory - 0xC0000000 + 1023 * 4], boot_page_directory - 0xC0000000 + 0x003
+
     mov ecx, boot_page_directory - 0xC0000000
     mov cr3, ecx
 
