@@ -1,15 +1,25 @@
 #ifndef _PMM_H
 #define _PMM_H
 
+#include "multiboot.h"
+#include "paging.h"
 #include <stdint.h>
 #include <stddef.h>
 
+extern char _kernel_start;
+extern char _kernel_end;
 extern struct buddy_allocator buddy_allocator;
 
-#define PAGE_SIZE		0x00001000U
-#define PAGE_SHIFT		12
-#define MAX_BLOCK_SIZE	0x00020000U
-#define MAX_ORDER		6
+#define MAX_BLOCK_SIZE		0x00020000U
+#define MAX_ORDER			__builtin_ffs(MAX_BLOCK_SIZE / PAGE_SIZE)
+
+struct buddy_order {
+	uint32_t *bitmap;
+	int free_count;
+};
+struct buddy_allocator {
+	struct buddy_order orders[MAX_ORDER];
+};
 
 #define BIT_DISTANCE(begin, end) \
     (((end) - (begin)) << 5)
@@ -21,14 +31,7 @@ extern struct buddy_allocator buddy_allocator;
     do { *(bitmap) &= ~(0x80000000U >> (offset)); } while (0)
 #define BIT_CHECK(bitmap, offset) ((*(bitmap) & (0x80000000U >> (offset))) != 0)
 
-struct buddy_order {
-	uint32_t *bitmap;
-	int free_count;
-};
-
-struct buddy_allocator {
-	struct buddy_order orders[MAX_ORDER];
-};
+void frame_allocator_init(multiboot_info_t* mbd);
 
 static inline void *frame_alloc(size_t size)
 {

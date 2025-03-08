@@ -32,7 +32,7 @@ _start:
     mov ecx, 1024
 
 .loop_page_mapping:
-    cmp esi, _kernel_end - 0xC0000000
+    cmp esi, _kernel_end
     jge .enable_paging
 
     mov edx, esi

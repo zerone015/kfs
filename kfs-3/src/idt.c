@@ -2,7 +2,7 @@
 #include "keyboard_handle.h"
 #include "pic.h"
 
-struct idt_entry idt[IDT_SIZE];
+static struct idt_entry idt[IDT_SIZE];
 
 void idt_init(void)
 {

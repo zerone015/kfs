@@ -33,7 +33,6 @@
 #define GDT_DATA_PL3 SEG_DESCTYPE(1) | SEG_PRES(1) | SEG_PRIV(3) | SEG_DATA_RDWR
 
 #define GDT_FLAGS 0xC
-#define GDT_BASE 0xC0000800
 
 struct gdt_entry {
     uint16_t limit_low;

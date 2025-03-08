@@ -43,3 +43,13 @@ size_t strlen(const char *str)
 		len++;
 	return len;
 }
+
+void *memset(void *p, int value, size_t size) 
+{
+	unsigned char *buf;
+	
+	buf = (unsigned char *) p;
+	for (size_t i = 0; i < size; i++)
+		buf[i] = (unsigned char)value;
+	return p;
+}
