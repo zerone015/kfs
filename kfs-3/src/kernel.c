@@ -8,7 +8,7 @@
 #include "pmm.h"
 #include "panic.h"
 
-void kmain(multiboot_info_t* mbd, uint32_t magic) 
+void kmain(multiboot_info_t* mbd, uint32_t magic)
 {
 	vga_init();
 	tty_init();

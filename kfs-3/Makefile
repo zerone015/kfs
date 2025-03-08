@@ -1,9 +1,11 @@
+.DEFAULT_GOAL := all
+
 NAME = kernel.elf
 
 CC = i686-elf-gcc
 AS = nasm
 
-CFLAGS = -std=gnu99 -ffreestanding -O2 -Wall -Wextra -I$(HEADER-DIR)
+CFLAGS = -std=gnu99 -ffreestanding -O2 -Wall -Wextra -MMD -MP -I$(HEADER-DIR)
 SFLAGS = -felf32
 LFLAGS = -ffreestanding -O2 -nostdlib
 
@@ -18,6 +20,8 @@ SRC = $(SRC-DIR)/kernel.c $(SRC-DIR)/tty.c $(SRC-DIR)/printk.c $(SRC-DIR)/utils.
 	$(SRC-DIR)/pmm.c $(SRC-DIR)/panic.c
 ASM = $(ASM-DIR)/boot.s $(ASM-DIR)/outb.s $(ASM-DIR)/inb.s $(ASM-DIR)/idt_load.s $(ASM-DIR)/keyboard_handler.s $(ASM-DIR)/gdt_load.s
 OBJ = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.o) $(ASM:$(ASM-DIR)/%.s=$(OBJ-DIR)/%.o)
+DEP = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.d)
+-include $(DEP)
 
 $(OBJ-DIR)/%.o: $(ASM-DIR)/%.s
 	$(AS) $(SFLAGS) $< -o $@
@@ -34,7 +38,7 @@ $(OBJ-DIR):
 	mkdir -p $(OBJ-DIR)
 
 clean:
-	rm -f $(wildcard $(OBJ-DIR)/*.o)
+	rm -f $(wildcard $(OBJ-DIR)/*.o) $(wildcard $(OBJ-DIR)/*.d)
 
 fclean: clean
 	rm -f $(NAME)
