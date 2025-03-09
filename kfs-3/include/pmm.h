@@ -10,12 +10,13 @@ extern char _kernel_start;
 extern char _kernel_end;
 extern struct buddy_allocator buddy_allocator;
 
+#define MAX_MMAP			50
 #define MAX_BLOCK_SIZE		0x00020000U
 #define MAX_ORDER			__builtin_ffs(MAX_BLOCK_SIZE / PAGE_SIZE)
 
 struct buddy_order {
 	uint32_t *bitmap;
-	int free_count;
+	size_t free_count;
 };
 struct buddy_allocator {
 	struct buddy_order orders[MAX_ORDER];
@@ -36,15 +37,15 @@ void frame_allocator_init(multiboot_info_t* mbd);
 static inline void *frame_alloc(size_t size)
 {
 	uint32_t *bitmap;
-	int order;
-	int bit_offset;
+	size_t order;
+	size_t bit_offset;
 
 	if (size > MAX_BLOCK_SIZE)
 		return NULL;
 	order = 0;
 	while (size > (PAGE_SIZE << order))
 		order++;
-	for (int i = order; i < MAX_ORDER; i++) {
+	for (size_t i = order; i < MAX_ORDER; i++) {
 		if (buddy_allocator.orders[i].free_count > 0) {
 			bitmap = buddy_allocator.orders[i].bitmap;
 			while (!(*bitmap)) 
@@ -68,8 +69,8 @@ static inline void *frame_alloc(size_t size)
 static inline void frame_free(void *addr, size_t size)
 {
 	uint32_t *bitmap;
-	int order;
-	int bit_offset;
+	size_t order;
+	size_t bit_offset;
 
 	if (!addr || size > MAX_BLOCK_SIZE)
 		return;
