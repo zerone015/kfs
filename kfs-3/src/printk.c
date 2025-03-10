@@ -52,7 +52,7 @@ static inline __attribute__((always_inline)) void print_address(va_list *ap)
 	size_t n;
 	int len;
 
-	n = va_arg(*ap, size_t);
+	n = va_arg(*ap, uintptr_t);
 	buf[0] = '0';
 	buf[1] = 'x';
 	len = number_to_string(buf + 2, n, 16, "0123456789abcdef");

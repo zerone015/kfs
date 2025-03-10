@@ -6,6 +6,5 @@
 #define MAX_RAM_SIZE		0x100000000U
 #define K_PAGE_TAB_END     	0xfffff000
 #define K_PAGE_TAB_BEGIN    0xfff00000
-#define K_VIRT_ADDR_BEGIN	0xC0000000
 
 #endif

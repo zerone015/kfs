@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "panic.h"
 #include "paging.h"
+#include "printk.h"
 
 struct buddy_allocator buddy_allocator;
 
@@ -207,6 +208,7 @@ static void mmap_virtual_unassign(uint32_t v_addr)
         *k_page_table = 0;
         k_page_table++;
     }
+    reload_cr3();
 }
 
 void frame_allocator_init(multiboot_info_t* mbd)
@@ -218,7 +220,7 @@ void frame_allocator_init(multiboot_info_t* mbd)
     mbd->mmap_addr = mmap_virtual_assign(mbd->mmap_addr, mbd->mmap_length);
     mmap_count = find_mmap_count(mbd->mmap_length);
     if (mmap_count > MAX_MMAP)
-        panic("PANIC: The GRUB memory map is too large!");
+        panic("The GRUB memory map is too large!");
     mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
     mmap_virtual_unassign(mbd->mmap_addr);
     ram_size = find_ram_size(mmap, mmap_count);
