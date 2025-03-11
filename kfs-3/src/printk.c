@@ -52,7 +52,7 @@ static inline __attribute__((always_inline)) void print_address(va_list *ap)
 	size_t n;
 	int len;
 
-	n = va_arg(*ap, size_t);
+	n = va_arg(*ap, uintptr_t);
 	buf[0] = '0';
 	buf[1] = 'x';
 	len = number_to_string(buf + 2, n, 16, "0123456789abcdef");
@@ -79,20 +79,22 @@ static inline __attribute__((always_inline)) void print_char(va_list *ap)
 	tty_putchar(c);
 }
 
-static inline __attribute__((always_inline)) bool has_log_level(const char *format)
-{
-	return format[0] == '<' && format[1] >= '0' && format[1] <= '1' && format[2] == '>';
-}
-
 void printk(const char *__restrict format, ...)
 {
 	va_list	ap;
 
 	va_start(ap, format);
-	if (has_log_level(format)) {
+	if (HAS_LOG_LEVEL(format)) {
 		switch (format[1] - '0') {
 		case 0:
 			tty_set_color(vga_entry_color(VGA_COLOR_RED, VGA_COLOR_BLACK));
+			break;
+		case 1:
+			tty_set_color(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
+			break;
+		case 2:
+			tty_set_color(vga_entry_color(VGA_COLOR_GREEN, VGA_COLOR_BLACK));
+			break;
 		}
 		format += 3;
 	}

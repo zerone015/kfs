@@ -2,20 +2,19 @@
 #include "utils.h"
 #include "panic.h"
 #include "paging.h"
+#include "printk.h"
 
 struct buddy_allocator buddy_allocator;
 
-static uint64_t find_ram_size(multiboot_info_t* mbd)
+static uint64_t find_ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
-	multiboot_memory_map_t *mmmt;
     uint64_t ram_size;
     
     ram_size = 0;
-    for (size_t i = 0; i < mbd->mmap_length; i += sizeof(multiboot_memory_map_t)) {
-		mmmt = (multiboot_memory_map_t *)((mbd->mmap_addr | K_VIRT_ADDR_BEGIN) + i);
-        if (mmmt->type == MULTIBOOT_MEMORY_AVAILABLE && mmmt->addr < MAX_RAM_SIZE) {
-            if (ram_size < mmmt->addr + mmmt->len)
-                ram_size = mmmt->addr + mmmt->len;
+    for (size_t i = 0; i < mmap_count; i++) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
+            if (ram_size < mmap[i].addr + mmap[i].len)
+                ram_size = mmap[i].addr + mmap[i].len;
         }
 	}
     return ram_size;
@@ -26,37 +25,35 @@ static size_t find_bitmap_size(uint64_t ram_size)
     size_t first_size;
     size_t sum;
 
-    first_size = (ram_size + PAGE_SIZE - 1) / PAGE_SIZE / 8;
     sum = 0;
+    first_size = (((ram_size + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8;
     for (size_t order = 0; order < MAX_ORDER; order++) {
-        if (first_size < sizeof(uint32_t))
-            first_size = sizeof(uint32_t);
-        sum += first_size;
+        sum += (first_size + 0x3) & ~0x3;
         first_size /= 2;
+        if (first_size < 32)
+            first_size = 32;
     }
     return (sum + 0xFFF) & ~0xFFF;
 }
 
-static void memory_align(multiboot_info_t* mbd)
+static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
-	multiboot_memory_map_t *mmmt;
     uint64_t align_addr;
 
-    for (size_t i = 0; i < mbd->mmap_length; i += sizeof(multiboot_memory_map_t)) {
-		mmmt = (multiboot_memory_map_t *)((mbd->mmap_addr | K_VIRT_ADDR_BEGIN) + i);
-        if (mmmt->type == MULTIBOOT_MEMORY_AVAILABLE && mmmt->addr < MAX_RAM_SIZE) {
-            align_addr = (mmmt->addr + 0xFFF) & ~0xFFF;
-            if (mmmt->len <= align_addr - mmmt->addr) {
-                mmmt->type = MULTIBOOT_MEMORY_RESERVED;
+    for (size_t i = 0; i < mmap_count; i++) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
+            align_addr = (mmap[i].addr + 0xFFF) & ~0xFFF;
+            if (mmap[i].len <= align_addr - mmap[i].addr) {
+                mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
             } else {
-                mmmt->len -= align_addr - mmmt->addr;
-                mmmt->addr = align_addr;
+                mmap[i].len -= align_addr - mmap[i].addr;
+                mmap[i].addr = align_addr;
             }
         }
 	}
 }
 
-static uint32_t bitmap_virtual_assign(uint32_t p_addr, size_t bitmap_size)
+static uint32_t virtual_assign(uint32_t p_addr, size_t size)
 {
     uint32_t *k_page_table;
     uint32_t page_dir_idx;
@@ -69,7 +66,7 @@ static uint32_t bitmap_virtual_assign(uint32_t p_addr, size_t bitmap_size)
     page_dir_idx = (((uint32_t)k_page_table) & 0x003FF000) << 10;
     page_tab_idx = ((((uint32_t)k_page_table) & 0x00000FFF) / 4) << 12;
     v_addr = page_dir_idx | page_tab_idx;
-    for (size_t page_count = bitmap_size / PAGE_SIZE; page_count; page_count--) {
+    for (size_t page_count = size / PAGE_SIZE; page_count; page_count--) {
         *k_page_table = p_addr + 0x003;
         k_page_table++;
         p_addr += PAGE_SIZE; 
@@ -81,106 +78,153 @@ static void bitmap_init(uint32_t v_addr, uint64_t ram_size)
 {
     size_t first_size;
 
-    first_size = (ram_size + PAGE_SIZE - 1) / PAGE_SIZE / 8;
+    first_size = (((ram_size + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8;
     for (size_t order = 0; order < MAX_ORDER; order++) {
-        if (first_size < sizeof(uint32_t))
-            first_size = sizeof(uint32_t);
         buddy_allocator.orders[order].bitmap = (uint32_t *)v_addr;
-        v_addr += first_size;
+        v_addr += (first_size + 0x3) & ~0x3;
         first_size /= 2;
+        if (first_size < 32)
+            first_size = 32;
     }
 }
 
-static void frame_register(multiboot_info_t* mbd)
+static void frame_register(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
-	multiboot_memory_map_t *mmmt;
     uint32_t addr;
     size_t page_count;
 
-    for (size_t i = 0; i < mbd->mmap_length; i += sizeof(multiboot_memory_map_t)) {
-		mmmt = (multiboot_memory_map_t *)((mbd->mmap_addr | K_VIRT_ADDR_BEGIN) + i);
-        if (mmmt->type == MULTIBOOT_MEMORY_AVAILABLE && mmmt->addr < MAX_RAM_SIZE) {
-            addr = (uint32_t)mmmt->addr;
-            page_count = mmmt->len / PAGE_SIZE;
+    for (size_t i = 0; i < mmap_count; i++) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
+            addr = (uint32_t)mmap[i].addr;
+            page_count = mmap[i].len / PAGE_SIZE;
             while (page_count--) {
                 frame_free((void *)addr, PAGE_SIZE);
-                addr += PAGE_SIZE; 
+                addr += PAGE_SIZE;
             }
         }
 	}
 }
 
-static void kernel_memory_reserve(multiboot_info_t* mbd)
+static void kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
-	multiboot_memory_map_t *mmmt;
     size_t kernel_size;
 
     kernel_size = (size_t)(&_kernel_end) - (size_t)(&_kernel_start);
-    for (size_t i = 0; i < mbd->mmap_length; i += sizeof(multiboot_memory_map_t)) {
-		mmmt = (multiboot_memory_map_t *)((mbd->mmap_addr | K_VIRT_ADDR_BEGIN) + i);
-        if (mmmt->type == MULTIBOOT_MEMORY_AVAILABLE && mmmt->addr < MAX_RAM_SIZE) {
-            if (mmmt->addr == 0x00100000) {
-                if (mmmt->len == kernel_size) {
-                    mmmt->type = MULTIBOOT_MEMORY_RESERVED;
+    for (size_t i = 0; i < mmap_count; i ++) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
+            if (mmap[i].addr == 0x00100000) {
+                if (mmap[i].len == kernel_size) {
+                    mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
                 } else {
-                    mmmt->len -= kernel_size;
-                    mmmt->addr += kernel_size;
+                    mmap[i].len -= kernel_size;
+                    mmap[i].addr += kernel_size;
                 }
             }
         }
 	}
 }
 
-static multiboot_memory_map_t *find_bitmap_memory(multiboot_info_t* mbd, size_t bitmap_size)
+static multiboot_memory_map_t *find_bitmap_memory(multiboot_memory_map_t* mmap, size_t mmap_count, size_t bitmap_size)
 {
-    multiboot_memory_map_t *mmmt;
-
-    for (size_t i = 0; i < mbd->mmap_length; i += sizeof(multiboot_memory_map_t)) {
-		mmmt = (multiboot_memory_map_t *)((mbd->mmap_addr | K_VIRT_ADDR_BEGIN) + i);
-        if (mmmt->type == MULTIBOOT_MEMORY_AVAILABLE && mmmt->addr < MAX_RAM_SIZE) {
-            if (bitmap_size <= mmmt->len) 
-                return mmmt;       
+    for (size_t i = 0; i < mmap_count; i++) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
+            if (bitmap_size <= mmap[i].len) 
+                return &mmap[i];       
         }
 	}
     return NULL;
 }
 
-static uint32_t bitmap_memory_reserve(uint64_t ram_size, multiboot_info_t* mbd)
+static uint32_t bitmap_memory_reserve(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
 {
-    multiboot_memory_map_t *mmmt;
+    multiboot_memory_map_t *useful_mmap;
     size_t bitmap_size;
     uint32_t v_addr;
 
     bitmap_size = find_bitmap_size(ram_size);
-    mmmt = find_bitmap_memory(mbd, bitmap_size);
-    if (!mmmt)
+    useful_mmap = find_bitmap_memory(mmap, mmap_count, bitmap_size);
+    if (!useful_mmap)
         panic("Not enough memory for bitmap allocation!");
-    v_addr = bitmap_virtual_assign((uint32_t)mmmt->addr, bitmap_size);
+    v_addr = virtual_assign((uint32_t)useful_mmap->addr, bitmap_size);
     memset((void *)v_addr, 0, bitmap_size);
-    if (mmmt->len == bitmap_size) {
-        mmmt->type = MULTIBOOT_MEMORY_RESERVED;
+    if (useful_mmap->len == bitmap_size) {
+        useful_mmap->type = MULTIBOOT_MEMORY_RESERVED;
     } else {
-        mmmt->len -= bitmap_size;
-        mmmt->addr += bitmap_size;
+        useful_mmap->len -= bitmap_size;
+        useful_mmap->addr += bitmap_size;
     }
     return v_addr;
 }
 
-static void buddy_allocator_init(uint64_t ram_size, multiboot_info_t* mbd)
+static void buddy_allocator_init(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uint32_t v_addr;
 
-    v_addr = bitmap_memory_reserve(ram_size, mbd);
+    v_addr = bitmap_memory_reserve(ram_size, mmap, mmap_count);
     bitmap_init(v_addr, ram_size);
-    frame_register(mbd);
+    frame_register(mmap, mmap_count);
+}
+
+static uint32_t mmap_virtual_assign(uint32_t mmap_addr, size_t mmap_size)
+{
+    uint32_t v_addr;
+
+    mmap_size = ((mmap_size + 0xFFF) & ~0xFFF) + PAGE_SIZE;
+    v_addr = virtual_assign(mmap_addr & 0xFFFFF000, mmap_size);
+    return v_addr | (mmap_addr & 0x00000FFF);
+}
+
+static size_t find_mmap_count(size_t mmap_length)
+{
+    size_t mmap_count;
+    size_t mmap_size;
+
+    mmap_count = 0;
+    mmap_size = sizeof(multiboot_memory_map_t);
+    for (size_t i = mmap_size; i <= mmap_length; i += mmap_size)
+        mmap_count++;
+    return mmap_count;
+}
+
+static void mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_map_t *src, size_t mmap_count)
+{
+    for (size_t i = 0; i < mmap_count; i++) 
+        memcpy(dest + i, src + i, sizeof(multiboot_memory_map_t));
+}
+
+static void mmap_virtual_unassign(uint32_t v_addr)
+{
+    uint32_t page_dir_idx;
+    uint32_t page_tab_idx;
+    uint32_t page_tab_entry_offset;
+    uint32_t *k_page_table;
+
+    page_dir_idx = 0xFFC00000;
+    page_tab_idx = (v_addr & 0xFFC00000) >> 10;
+    page_tab_entry_offset = ((v_addr & 0x003FF000) >> 12) * 4;
+    k_page_table = (uint32_t *)(page_dir_idx | page_tab_idx | page_tab_entry_offset);
+    *(k_page_table - 1) = 0;
+    while (*k_page_table) {
+        *k_page_table = 0;
+        k_page_table++;
+    }
+    reload_cr3();
 }
 
 void frame_allocator_init(multiboot_info_t* mbd)
 {
     uint64_t ram_size;
+    multiboot_memory_map_t mmap[MAX_MMAP];
+    size_t mmap_count;
 
-    ram_size = find_ram_size(mbd);
-    kernel_memory_reserve(mbd);
-    memory_align(mbd);
-    buddy_allocator_init(ram_size, mbd);
+    mbd->mmap_addr = mmap_virtual_assign(mbd->mmap_addr, mbd->mmap_length);
+    mmap_count = find_mmap_count(mbd->mmap_length);
+    if (mmap_count > MAX_MMAP)
+        panic("The GRUB memory map is too large!");
+    mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
+    mmap_virtual_unassign(mbd->mmap_addr);
+    ram_size = find_ram_size(mmap, mmap_count);
+    kernel_memory_reserve(mmap, mmap_count);
+    memory_align(mmap, mmap_count);
+    buddy_allocator_init(ram_size, mmap, mmap_count);
 }
