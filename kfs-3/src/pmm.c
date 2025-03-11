@@ -2,7 +2,6 @@
 #include "utils.h"
 #include "panic.h"
 #include "paging.h"
-#include "printk.h"
 
 struct buddy_allocator buddy_allocator;
 
