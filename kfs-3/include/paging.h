@@ -1,6 +1,8 @@
 #ifndef _PAGING_H
 #define _PAGING_H
 
+#include <stdint.h>
+
 #define PAGE_SIZE			0x00001000U
 #define PAGE_SHIFT			__builtin_ctz(PAGE_SIZE)
 #define MAX_RAM_SIZE		0x100000000U
@@ -13,5 +15,13 @@
 #define TAB_FROM_ADDR(addr)         (0xFFC00000 | (((addr) & 0xFFC00000) >> 10) | ((((addr) & 0x003FF000) >> 12) * 4))
 #define ADDR_REMOVE_OFFSET(addr)    ((addr) & 0xFFFFF000)
 #define ADDR_GET_OFFSET(addr)       ((addr) & 0x00000FFF)
+
+static inline void reload_cr3(void) 
+{
+    uint32_t cr3;
+
+    __asm__ volatile ("mov %%cr3, %0" : "=r" (cr3));
+    __asm__ volatile ("mov %0, %%cr3" :: "r" (cr3));
+}
 
 #endif

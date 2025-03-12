@@ -5,13 +5,25 @@
 
 struct buddy_allocator buddy_allocator;
 
+static void mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
+{
+    for (size_t i = 0; i < mmap_count; i++) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
+            if (mmap[i].addr >= MAX_RAM_SIZE)
+                mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
+            else if (mmap[i].addr + mmap[i].len > MAX_RAM_SIZE)
+                mmap[i].len -= mmap[i].addr + mmap[i].len - MAX_RAM_SIZE;
+        }
+	}
+}
+
 static uint64_t find_ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uint64_t ram_size;
     
     ram_size = 0;
     for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
             if (ram_size < mmap[i].addr + mmap[i].len)
                 ram_size = mmap[i].addr + mmap[i].len;
         }
@@ -40,7 +52,7 @@ static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
     uint64_t align_addr;
 
     for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
             align_addr = ALIGN_PAGE(mmap[i].addr);
             if (mmap[i].len <= align_addr - mmap[i].addr) {
                 mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
@@ -89,7 +101,7 @@ static void frame_register(multiboot_memory_map_t* mmap, size_t mmap_count)
     size_t page_count;
 
     for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
             addr = (uint32_t)mmap[i].addr;
             page_count = mmap[i].len / PAGE_SIZE;
             while (page_count--) {
@@ -106,7 +118,7 @@ static void kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_coun
 
     kernel_size = KERNEL_SIZE;
     for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
             if (mmap[i].addr == 0x00100000) {
                 if (mmap[i].len == kernel_size) {
                     mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
@@ -122,7 +134,7 @@ static void kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_coun
 static multiboot_memory_map_t *find_bitmap_memory(multiboot_memory_map_t* mmap, size_t mmap_count, size_t bitmap_size)
 {
     for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
+        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
             if (bitmap_size <= mmap[i].len) 
                 return &mmap[i];       
         }
@@ -212,6 +224,7 @@ void frame_allocator_init(multiboot_info_t* mbd)
         panic("The GRUB memory map is too large!");
     mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
     mmap_virtual_unassign(mbd->mmap_addr);
+    mmap_sanitize(mmap, mmap_count);
     ram_size = find_ram_size(mmap, mmap_count);
     kernel_memory_reserve(mmap, mmap_count);
     memory_align(mmap, mmap_count);
