@@ -25,14 +25,14 @@ static size_t find_bitmap_size(uint64_t ram_size)
     size_t sum;
 
     sum = 0;
-    first_size = (((ram_size + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8;
+    first_size = BITMAP_SIZE(ram_size);
     for (size_t order = 0; order < MAX_ORDER; order++) {
-        sum += (first_size + 0x3) & ~0x3;
+        sum += ALIGN_4BYTE(first_size);
         first_size /= 2;
         if (first_size < 32)
             first_size = 32;
     }
-    return (sum + 0xFFF) & ~0xFFF;
+    return ALIGN_PAGE(sum);
 }
 
 static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
@@ -41,7 +41,7 @@ static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
 
     for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
-            align_addr = (mmap[i].addr + 0xFFF) & ~0xFFF;
+            align_addr = ALIGN_PAGE(mmap[i].addr);
             if (mmap[i].len <= align_addr - mmap[i].addr) {
                 mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
             } else {
@@ -55,18 +55,14 @@ static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
 static uint32_t virtual_assign(uint32_t p_addr, size_t size)
 {
     uint32_t *k_page_table;
-    uint32_t page_dir_idx;
-    uint32_t page_tab_idx;
     uint32_t v_addr;
 
     k_page_table = (uint32_t *)K_PAGE_TAB_BEGIN;
     while (*k_page_table)
         k_page_table++;
-    page_dir_idx = (((uint32_t)k_page_table) & 0x003FF000) << 10;
-    page_tab_idx = ((((uint32_t)k_page_table) & 0x00000FFF) / 4) << 12;
-    v_addr = page_dir_idx | page_tab_idx;
+    v_addr = ADDR_FROM_TAB(k_page_table);
     for (size_t page_count = size / PAGE_SIZE; page_count; page_count--) {
-        *k_page_table = p_addr + 0x003;
+        *k_page_table = p_addr + PAGE_TAB_RDWR;
         k_page_table++;
         p_addr += PAGE_SIZE; 
     }
@@ -77,10 +73,10 @@ static void bitmap_init(uint32_t v_addr, uint64_t ram_size)
 {
     size_t first_size;
 
-    first_size = (((ram_size + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8;
+    first_size = BITMAP_SIZE(ram_size);
     for (size_t order = 0; order < MAX_ORDER; order++) {
         buddy_allocator.orders[order].bitmap = (uint32_t *)v_addr;
-        v_addr += (first_size + 0x3) & ~0x3;
+        v_addr += ALIGN_4BYTE(first_size);
         first_size /= 2;
         if (first_size < 32)
             first_size = 32;
@@ -108,8 +104,8 @@ static void kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_coun
 {
     size_t kernel_size;
 
-    kernel_size = (size_t)(&_kernel_end) - (size_t)(&_kernel_start);
-    for (size_t i = 0; i < mmap_count; i ++) {
+    kernel_size = KERNEL_SIZE;
+    for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[i].addr < MAX_RAM_SIZE) {
             if (mmap[i].addr == 0x00100000) {
                 if (mmap[i].len == kernel_size) {
@@ -168,9 +164,9 @@ static uint32_t mmap_virtual_assign(uint32_t mmap_addr, size_t mmap_size)
 {
     uint32_t v_addr;
 
-    mmap_size = ((mmap_size + 0xFFF) & ~0xFFF) + PAGE_SIZE;
-    v_addr = virtual_assign(mmap_addr & 0xFFFFF000, mmap_size);
-    return v_addr | (mmap_addr & 0x00000FFF);
+    mmap_size = ALIGN_PAGE(mmap_size) + PAGE_SIZE;
+    v_addr = virtual_assign(ADDR_REMOVE_OFFSET(mmap_addr), mmap_size);
+    return v_addr | ADDR_GET_OFFSET(mmap_addr);
 }
 
 static size_t find_mmap_count(size_t mmap_length)
@@ -193,15 +189,9 @@ static void mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_map_t *sr
 
 static void mmap_virtual_unassign(uint32_t v_addr)
 {
-    uint32_t page_dir_idx;
-    uint32_t page_tab_idx;
-    uint32_t page_tab_entry_offset;
     uint32_t *k_page_table;
 
-    page_dir_idx = 0xFFC00000;
-    page_tab_idx = (v_addr & 0xFFC00000) >> 10;
-    page_tab_entry_offset = ((v_addr & 0x003FF000) >> 12) * 4;
-    k_page_table = (uint32_t *)(page_dir_idx | page_tab_idx | page_tab_entry_offset);
+    k_page_table = (uint32_t *)TAB_FROM_ADDR(v_addr);
     *(k_page_table - 1) = 0;
     while (*k_page_table) {
         *k_page_table = 0;

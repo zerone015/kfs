@@ -3,8 +3,11 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "paging.h"
 
 #define CHECK_FLAG(flags,bit)   ((flags) & (1 << (bit)))
+#define ALIGN_4BYTE(val)        (((val) + 0x3) & ~0x3)
+#define ALIGN_PAGE(val)     (((val) + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1))
 
 unsigned int abs(int n);
 int number_to_string(char *buf, size_t n, size_t radix, const char *base);

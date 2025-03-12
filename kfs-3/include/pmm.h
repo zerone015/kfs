@@ -13,6 +13,7 @@ extern struct buddy_allocator buddy_allocator;
 #define MAX_MMAP			50
 #define MAX_BLOCK_SIZE		0x00020000U
 #define MAX_ORDER			__builtin_ffs(MAX_BLOCK_SIZE / PAGE_SIZE)
+#define KERNEL_SIZE			((size_t)(&_kernel_end) - (size_t)(&_kernel_start))
 
 struct buddy_order {
 	uint32_t *bitmap;
@@ -21,20 +22,16 @@ struct buddy_order {
 struct buddy_allocator {
 	struct buddy_order orders[MAX_ORDER];
 };
-
-#define BIT_DISTANCE(begin, end) \
-    (((end) - (begin)) << 5)
-#define BIT_FIRST_SET_OFFSET(begin, end) \
-	((BIT_DISTANCE((begin), (end))) + __builtin_clz(*(end)))
-#define BIT_SET(bitmap, offset) \
-    do { *(bitmap) |= (0x80000000U >> (offset)); } while (0)
-#define BIT_UNSET(bitmap, offset) \
-    do { *(bitmap) &= ~(0x80000000U >> (offset)); } while (0)
-#define BIT_CHECK(bitmap, offset) ((*(bitmap) & (0x80000000U >> (offset))) != 0)
+#define BITMAP_SIZE(ram)    				(((((ram) + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8)
+#define BIT_DISTANCE(begin, end)			(((end) - (begin)) << 5)
+#define BIT_FIRST_SET_OFFSET(begin, end)	((BIT_DISTANCE((begin), (end))) + __builtin_clz(*(end)))
+#define BIT_SET(bitmap, offset) 			do { *(bitmap) |= (0x80000000U >> (offset)); } while (0)
+#define BIT_UNSET(bitmap, offset) 			do { *(bitmap) &= ~(0x80000000U >> (offset)); } while (0)
+#define BIT_CHECK(bitmap, offset) 			((*(bitmap) & (0x80000000U >> (offset))) != 0)
 
 void frame_allocator_init(multiboot_info_t* mbd);
 
-static inline __attribute__((always_inline)) void *frame_alloc(size_t size)
+static inline void *frame_alloc(size_t size)
 {
 	uint32_t *bitmap;
 	size_t order;
@@ -66,7 +63,7 @@ static inline __attribute__((always_inline)) void *frame_alloc(size_t size)
 	return NULL;
 }
 
-static inline __attribute__((always_inline)) void frame_free(void *addr, size_t size)
+static inline void frame_free(void *addr, size_t size)
 {
 	uint32_t *bitmap;
 	size_t order;
