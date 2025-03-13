@@ -13,7 +13,7 @@ align 4
 section .bootstrap_stack nobits
 align 16
 stack_bottom:
-    resb 16384
+    resb 8192
 stack_top:
 
 section .bss nobits
