@@ -9,10 +9,10 @@
 #include "panic.h"
 #include "printk.h"
 
-void kmain(multiboot_info_t* mbd, uint32_t magic)
+void kmain(multiboot_info_t* mbd, uint32_t magic, uint16_t *vga_memory)
 {
 	vga_init();
-	tty_init();
+	tty_init(vga_memory);
 	gdt_init();
 	idt_init();
 	pic_init();

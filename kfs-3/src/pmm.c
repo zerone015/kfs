@@ -64,7 +64,7 @@ static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
 	}
 }
 
-static uint32_t virtual_assign(uint32_t p_addr, size_t size)
+static uint32_t virtual_assign(uint32_t p_addr, size_t size, uint32_t mode)
 {
     uint32_t *k_page_table;
     uint32_t v_addr;
@@ -74,7 +74,7 @@ static uint32_t virtual_assign(uint32_t p_addr, size_t size)
         k_page_table++;
     v_addr = ADDR_FROM_TAB(k_page_table);
     for (size_t page_count = size / PAGE_SIZE; page_count; page_count--) {
-        *k_page_table = p_addr + PAGE_TAB_RDWR;
+        *k_page_table = p_addr | mode;
         k_page_table++;
         p_addr += PAGE_SIZE; 
     }
@@ -152,7 +152,7 @@ static uint32_t bitmap_memory_reserve(uint64_t ram_size, multiboot_memory_map_t*
     useful_mmap = find_bitmap_memory(mmap, mmap_count, bitmap_size);
     if (!useful_mmap)
         panic("Not enough memory for bitmap allocation!");
-    v_addr = virtual_assign((uint32_t)useful_mmap->addr, bitmap_size);
+    v_addr = virtual_assign((uint32_t)useful_mmap->addr, bitmap_size, PAGE_TAB_GLOBAL | PAGE_TAB_RDWR);
     memset((void *)v_addr, 0, bitmap_size);
     if (useful_mmap->len == bitmap_size) {
         useful_mmap->type = MULTIBOOT_MEMORY_RESERVED;
@@ -177,7 +177,7 @@ static uint32_t mmap_virtual_assign(uint32_t mmap_addr, size_t mmap_size)
     uint32_t v_addr;
 
     mmap_size = ALIGN_PAGE(mmap_size) + PAGE_SIZE;
-    v_addr = virtual_assign(ADDR_REMOVE_OFFSET(mmap_addr), mmap_size);
+    v_addr = virtual_assign(ADDR_REMOVE_OFFSET(mmap_addr), mmap_size, PAGE_TAB_RDWR);
     return v_addr | ADDR_GET_OFFSET(mmap_addr);
 }
 
@@ -199,16 +199,17 @@ static void mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_map_t *sr
         memcpy(dest + i, src + i, sizeof(multiboot_memory_map_t));
 }
 
-static void mmap_virtual_unassign(uint32_t v_addr)
+static void mmap_virtual_unassign(multiboot_info_t* mbd)
 {
     uint32_t *k_page_table;
 
-    k_page_table = (uint32_t *)TAB_FROM_ADDR(v_addr);
-    *(k_page_table - 1) = 0;
+    k_page_table = (uint32_t *)TAB_FROM_ADDR(mbd->mmap_addr);
     while (*k_page_table) {
         *k_page_table = 0;
         k_page_table++;
     }
+    k_page_table = ((uint32_t *)TAB_FROM_ADDR(mbd));
+    *k_page_table = 0;
     reload_cr3();
 }
 
@@ -223,7 +224,7 @@ void frame_allocator_init(multiboot_info_t* mbd)
     if (mmap_count > MAX_MMAP)
         panic("The GRUB memory map is too large!");
     mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
-    mmap_virtual_unassign(mbd->mmap_addr);
+    mmap_virtual_unassign(mbd);
     mmap_sanitize(mmap, mmap_count);
     ram_size = find_ram_size(mmap, mmap_count);
     kernel_memory_reserve(mmap, mmap_count);

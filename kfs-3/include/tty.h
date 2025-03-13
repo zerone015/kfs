@@ -25,7 +25,7 @@ struct tty_context {
 	size_t input_length;
 };
 
-void		tty_init(void);
+void		tty_init(uint16_t *vga_memory);
 void		tty_putentryat(char c, uint8_t color, size_t x, size_t y);
 void		tty_set_color(uint8_t color);
 void		tty_change(size_t target_tty_idx);

@@ -11,7 +11,7 @@ static struct tty_context	tty[TTY_MAX];
 static size_t			cur_tty;
 static uint16_t			*vga_buf;
 
-void tty_init(void)
+void tty_init(uint16_t *vga_memory)
 {
 	for (size_t i = 0; i < TTY_MAX; i++) {
 		tty[i].row = 0;
@@ -29,7 +29,7 @@ void tty_init(void)
 			vga_buf[j] = VGA_ENTRY(' ', tty[i].color);
 	}
 	cur_tty = 0;
-	vga_buf = (uint16_t *) VGA_MEMORY;
+	vga_buf = vga_memory;
 	for (size_t i = 0; i < VGA_SIZE; i++)
 		vga_buf[i] = tty[cur_tty].buf[i];
 }

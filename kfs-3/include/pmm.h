@@ -13,7 +13,11 @@ extern struct buddy_allocator buddy_allocator;
 #define MAX_MMAP			50
 #define MAX_BLOCK_SIZE		0x00020000U
 #define MAX_ORDER			__builtin_ffs(MAX_BLOCK_SIZE / PAGE_SIZE)
-#define KERNEL_SIZE			((size_t)(&_kernel_end) - (size_t)(&_kernel_start))
+#define KERNEL_START		((size_t)(&_kernel_start))
+#define KERNEL_END			((size_t)(&_kernel_end))
+#define KERNEL_SIZE			(KERNEL_END - KERNEL_START)
+#define VIRT_KERNEL_START	(0xC0000000 | KERNEL_START)
+#define VIRT_KERNEL_END		(0xC0000000 | KERNEL_END)
 
 struct buddy_order {
 	uint32_t *bitmap;
@@ -22,6 +26,7 @@ struct buddy_order {
 struct buddy_allocator {
 	struct buddy_order orders[MAX_ORDER];
 };
+
 #define BITMAP_SIZE(ram)    				(((((ram) + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8)
 #define BIT_DISTANCE(begin, end)			(((end) - (begin)) << 5)
 #define BIT_FIRST_SET_OFFSET(begin, end)	((BIT_DISTANCE((begin), (end))) + __builtin_clz(*(end)))
