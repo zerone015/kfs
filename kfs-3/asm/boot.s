@@ -27,6 +27,8 @@ boot_page_table2:
 section .multiboot.text
 extern _kernel_start
 extern _kernel_end
+extern _kernel_text_start
+extern _kernel_data_start
 global _start
 _start:
     mov edi, boot_page_table1 - 0xC0000000
@@ -35,20 +37,33 @@ _start:
 
 .loop_page_mapping:
     cmp esi, _kernel_start
-    jl .skip_mapping
+    jl .increase_offset
     cmp esi, _kernel_end
-    jge .mbd_vga_mapping
+    jge .mbd_vga_page_mapping
 
     mov edx, esi
+
+    cmp edx, _kernel_text_start
+    jl .rdwr_mode
+    cmp edx, _kernel_data_start
+    jge .rdwr_mode
+
+.readonly_mode:
+    or edx, 0x101
+    jmp .register_entry
+
+.rdwr_mode:
     or edx, 0x103
+
+.register_entry:
     mov [edi], edx
 
-.skip_mapping:
+.increase_offset:
     add esi, 4096
     add edi, 4
     loop .loop_page_mapping
 
-.mbd_vga_mapping:
+.mbd_vga_page_mapping:
     mov edx, ebx 
     and edx, 0xFFFFF000
     or edx, 0x003
@@ -61,7 +76,7 @@ _start:
     or edx, 0xC0000000
     or ebx, edx
 
-    mov dword [edi + 4], 0x000B8003
+    mov dword [edi + 4], 0x000B8000 + 0x103
     mov edx, ecx
     sub edx, 1025
     neg edx
@@ -73,7 +88,7 @@ _start:
     mov dword [boot_page_directory - 0xC0000000 + 768 * 4], boot_page_table1 - 0xC0000000 + 0x003
     mov dword [boot_page_directory - 0xC0000000 + 769 * 4], boot_page_table2 - 0xC0000000 + 0x003
 
-.recursive_paging:
+.recursive_mapping:
     mov dword [boot_page_directory - 0xC0000000 + 1023 * 4], boot_page_directory - 0xC0000000 + 0x003
 
 .enable_paging:
