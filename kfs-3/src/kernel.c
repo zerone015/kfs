@@ -4,10 +4,9 @@
 #include "pic.h"
 #include "idt.h"
 #include "gdt.h"
-#include "utils.h"
 #include "pmm.h"
 #include "panic.h"
-#include "printk.h"
+#include "utils.h"
 
 void kmain(multiboot_info_t* mbd, uint32_t magic, uint16_t *vga_memory)
 {

@@ -4,5 +4,5 @@
 void panic(const char *msg)
 {
 	printk(KERN_ERR "PANIC: %s\n", msg);
-	asm volatile("cli; hlt");
+	__asm__("cli; hlt");
 }

@@ -67,18 +67,15 @@ static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
 static uint32_t virtual_assign(uint32_t p_addr, size_t size, uint32_t mode)
 {
     uint32_t *k_page_table;
-    uint32_t v_addr;
 
-    k_page_table = (uint32_t *)K_PAGE_TAB_BEGIN;
+    k_page_table = (uint32_t *)TAB_FROM_ADDR(VIRT_KERNEL_END);
     while (*k_page_table)
         k_page_table++;
-    v_addr = ADDR_FROM_TAB(k_page_table);
-    for (size_t page_count = size / PAGE_SIZE; page_count; page_count--) {
-        *k_page_table = p_addr | mode;
-        k_page_table++;
+    for (size_t i = 0; i < size / PAGE_SIZE; i++) {
+        k_page_table[i] = p_addr | mode;
         p_addr += PAGE_SIZE; 
     }
-    return v_addr;
+    return ADDR_FROM_TAB(k_page_table);
 }
 
 static void bitmap_init(uint32_t v_addr, uint64_t ram_size)
@@ -204,11 +201,9 @@ static void mmap_virtual_unassign(multiboot_info_t* mbd)
     uint32_t *k_page_table;
 
     k_page_table = (uint32_t *)TAB_FROM_ADDR(mbd->mmap_addr);
-    while (*k_page_table) {
-        *k_page_table = 0;
-        k_page_table++;
-    }
-    k_page_table = ((uint32_t *)TAB_FROM_ADDR(mbd));
+    for (size_t i = 0; i < (ALIGN_PAGE(mbd->mmap_length) + PAGE_SIZE) / PAGE_SIZE; i++)
+        k_page_table[i] = 0;
+    k_page_table = (uint32_t *)TAB_FROM_ADDR(mbd);
     *k_page_table = 0;
     reload_cr3();
 }

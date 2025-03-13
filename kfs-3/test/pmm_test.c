@@ -1,8 +1,9 @@
+
 #include "printk.h"
 #include "pmm.h"
 #include <stdint.h>
 
-#define T_ARRAY_SIZE 1024 * 256
+#define T_ARRAY_SIZE 1024 * 1024
 
 static inline int test_bitmap_and_free_count(void)
 {
@@ -27,8 +28,8 @@ static inline int test_bitmap_and_free_count(void)
     return 1;
 }
 
-/* 이 테스트는 최대 1GB 크기의 RAM을 지원한다.
- * 테스트하기전에 boot.s에서 스택의 크기를 2MB까지 늘려야 한다.
+/* 
+ * 테스트하기전에 boot.s에서 스택의 크기를 RAM 크기에 비례하여 늘려야 한다.
  * 그리고 T_ARRAY_SIZE를 RAM 크기에 맞게 조정해야한다. 
  */
 void test_frame_allocator(multiboot_memory_map_t *mmap, size_t mmap_count)

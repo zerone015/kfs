@@ -33,13 +33,13 @@ global _start
 _start:
     mov edi, boot_page_table1 - 0xC0000000
     mov esi, 0
-    mov ecx, 1024
+    mov ecx, 1024 * 2 - 2
 
 .loop_page_mapping:
     cmp esi, _kernel_start
     jl .increase_offset
     cmp esi, _kernel_end
-    jge .mbd_vga_page_mapping
+    jge .vga_mbd_page_mapping
 
     mov edx, esi
 
@@ -63,25 +63,25 @@ _start:
     add edi, 4
     loop .loop_page_mapping
 
-.mbd_vga_page_mapping:
-    mov edx, ebx 
-    and edx, 0xFFFFF000
-    or edx, 0x003
-    mov [edi], edx
-    and ebx, 0x00000FFF
+.vga_mbd_page_mapping:
+    mov dword [edi], 0x000B8000 + 0x103
     mov edx, ecx
-    sub edx, 1024
+    sub edx, 1024 * 2 - 2
     neg edx
     shl edx, 12
     or edx, 0xC0000000
-    or ebx, edx
 
-    mov dword [edi + 4], 0x000B8000 + 0x103
-    mov edx, ecx
-    sub edx, 1025
-    neg edx
-    shl edx, 12
-    or edx, 0xC0000000
+    mov esi, ebx 
+    and esi, 0xFFFFF000
+    or esi, 0x003
+    mov [edi + 4], esi
+    and ebx, 0x00000FFF
+    mov esi, ecx
+    sub esi, 1024 * 2 - 1
+    neg esi
+    shl esi, 12
+    or esi, 0xC0000000
+    or ebx, esi
 
 .page_table_mapping:
     mov dword [boot_page_directory - 0xC0000000], boot_page_table1 - 0xC0000000 + 0x003
