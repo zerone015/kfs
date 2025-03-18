@@ -10,6 +10,7 @@
 #define TRAP_GATE		    0x8F
 #define TASK_GATE		    0x85
 #define KEYBOARD_INT		(PIC1_OFFSET + 1)
+#define PAGE_FAULT_INT      0x0E
 
 struct idt_entry {
     uint16_t offset_low;
@@ -24,8 +25,8 @@ struct idt_ptr {
     uint32_t base;
 } __attribute__((packed));
 
-void idt_init(void);
-void idt_load(uint32_t idt_addr);
-void idt_set_gate(int idx, uint32_t handler);
+extern void idt_init(void);
+extern void idt_load(uint32_t idt_addr);
+extern void idt_set_gate(int idx, uint32_t handler);
 
 #endif
