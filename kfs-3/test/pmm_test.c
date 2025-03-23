@@ -1,4 +1,3 @@
-
 #include "printk.h"
 #include "pmm.h"
 #include <stdint.h>
@@ -28,17 +27,21 @@ static inline int test_bitmap_and_free_count(void)
     return 1;
 }
 
+static void print_free_count(void)
+{
+    for (size_t order = 0; order < MAX_ORDER; order++)
+        printk("order%u free_count: %u\n", order, buddy_allocator.orders[order].free_count);
+}
+
 /* 
- * 테스트하기전에 boot.s에서 스택의 크기를 RAM 크기에 비례하여 늘려야 한다.
- * 그리고 T_ARRAY_SIZE를 RAM 크기에 맞게 조정해야한다. 
+ * 테스트하기전에 boot.s에서 스택의 크기를 5MB로 설정해야 합니다.
  */
 void test_frame_allocator(multiboot_memory_map_t *mmap, size_t mmap_count)
 {
-    void* addrs[T_ARRAY_SIZE];
+    uint32_t addrs[T_ARRAY_SIZE];
 
-    for (size_t order = 0; order < MAX_ORDER; order++)
-        printk("order%u free_count: %u\n", order, buddy_allocator.orders[order].free_count);
-
+    // print_free_count();
+    
     printk("PMM test case 1 (only 4kb page): ");
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
         addrs[i] = frame_alloc(PAGE_SIZE);
@@ -55,13 +58,13 @@ void test_frame_allocator(multiboot_memory_map_t *mmap, size_t mmap_count)
 
     printk("PMM test case 2 (only 8kb page): ");
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        addrs[i] = frame_alloc(PAGE_SIZE * 2);
+        addrs[i] = frame_alloc(PAGE_SIZE << 1);
     for (size_t i = 1; i <= T_ARRAY_SIZE; i++) 
-        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE * 2);
+        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE << 1);
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        addrs[i] = frame_alloc(PAGE_SIZE * 2);
+        addrs[i] = frame_alloc(PAGE_SIZE << 1);
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        frame_free(addrs[i], PAGE_SIZE * 2);
+        frame_free(addrs[i], PAGE_SIZE << 1);
     if (test_bitmap_and_free_count())
         printk(KERN_DEBUG "OK\n");
     else
@@ -69,13 +72,13 @@ void test_frame_allocator(multiboot_memory_map_t *mmap, size_t mmap_count)
 
     printk("PMM test case 3 (only 16kb page): ");
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        addrs[i] = frame_alloc(PAGE_SIZE * 4);
+        addrs[i] = frame_alloc(PAGE_SIZE << 2);
     for (size_t i = 1; i <= T_ARRAY_SIZE; i++) 
-        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE * 4);
+        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE << 2);
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        addrs[i] = frame_alloc(PAGE_SIZE * 4);
+        addrs[i] = frame_alloc(PAGE_SIZE << 2);
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        frame_free(addrs[i], PAGE_SIZE * 4);
+        frame_free(addrs[i], PAGE_SIZE << 2);
     if (test_bitmap_and_free_count())
         printk(KERN_DEBUG "OK\n");
     else
@@ -83,13 +86,13 @@ void test_frame_allocator(multiboot_memory_map_t *mmap, size_t mmap_count)
 
     printk("PMM test case 4 (only 32kb page): ");
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        addrs[i] = frame_alloc(PAGE_SIZE * 8);
+        addrs[i] = frame_alloc(PAGE_SIZE << 3);
     for (size_t i = 1; i <= T_ARRAY_SIZE; i++) 
-        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE * 8);
+        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE << 3);
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        addrs[i] = frame_alloc(PAGE_SIZE * 8);
+        addrs[i] = frame_alloc(PAGE_SIZE << 3);
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        frame_free(addrs[i], PAGE_SIZE * 8);
+        frame_free(addrs[i], PAGE_SIZE << 3);
     if (test_bitmap_and_free_count())
         printk(KERN_DEBUG "OK\n");
     else
@@ -97,27 +100,97 @@ void test_frame_allocator(multiboot_memory_map_t *mmap, size_t mmap_count)
 
     printk("PMM test case 5 (only 64kb page): ");
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        addrs[i] = frame_alloc(PAGE_SIZE * 16);
+        addrs[i] = frame_alloc(PAGE_SIZE << 4);
     for (size_t i = 1; i <= T_ARRAY_SIZE; i++) 
-        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE * 16);
+        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE << 4);
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        addrs[i] = frame_alloc(PAGE_SIZE * 16);
+        addrs[i] = frame_alloc(PAGE_SIZE << 4);
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        frame_free(addrs[i], PAGE_SIZE * 16);
+        frame_free(addrs[i], PAGE_SIZE << 4);
     if (test_bitmap_and_free_count())
         printk(KERN_DEBUG "OK\n");
     else
         printk(KERN_ERR "Failed\n");
 
-    printk("PMM test case 6 (only 128kb page): ");
+    printk("PMM test case 6-1 (only 128kb page): ");
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        addrs[i] = frame_alloc(PAGE_SIZE * 32);
+        addrs[i] = frame_alloc(PAGE_SIZE << 5);
     for (size_t i = 1; i <= T_ARRAY_SIZE; i++) 
-        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE * 32);
+        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE << 5);
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        addrs[i] = frame_alloc(PAGE_SIZE * 32);
+        addrs[i] = frame_alloc(PAGE_SIZE << 5);
     for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
-        frame_free(addrs[i], PAGE_SIZE * 32);
+        frame_free(addrs[i], PAGE_SIZE << 5);
+    if (test_bitmap_and_free_count())
+        printk(KERN_DEBUG "OK\n");
+    else
+        printk(KERN_ERR "Failed\n");
+
+    printk("PMM test case 6-2 (only 256KB page): ");
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        addrs[i] = frame_alloc(PAGE_SIZE << 6);
+    for (size_t i = 1; i <= T_ARRAY_SIZE; i++) 
+        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE << 6);
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        addrs[i] = frame_alloc(PAGE_SIZE << 6);
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        frame_free(addrs[i], PAGE_SIZE << 6);
+    if (test_bitmap_and_free_count())
+        printk(KERN_DEBUG "OK\n");
+    else
+        printk(KERN_ERR "Failed\n");
+
+    printk("PMM test case 6-3 (only 512KB page): ");
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        addrs[i] = frame_alloc(PAGE_SIZE << 7);
+    for (size_t i = 1; i <= T_ARRAY_SIZE; i++) 
+        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE << 7);
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        addrs[i] = frame_alloc(PAGE_SIZE << 7);
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        frame_free(addrs[i], PAGE_SIZE << 7);
+    if (test_bitmap_and_free_count())
+        printk(KERN_DEBUG "OK\n");
+    else
+        printk(KERN_ERR "Failed\n"); 
+    
+    printk("PMM test case 6-4 (only 1MB page): ");
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        addrs[i] = frame_alloc(PAGE_SIZE << 8);
+    for (size_t i = 1; i <= T_ARRAY_SIZE; i++) 
+        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE << 8);
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        addrs[i] = frame_alloc(PAGE_SIZE << 8);
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        frame_free(addrs[i], PAGE_SIZE << 8);
+    if (test_bitmap_and_free_count())
+        printk(KERN_DEBUG "OK\n");
+    else
+        printk(KERN_ERR "Failed\n"); 
+
+    printk("PMM test case 6-5 (only 2MB page): ");
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        addrs[i] = frame_alloc(PAGE_SIZE << 9);
+    for (size_t i = 1; i <= T_ARRAY_SIZE; i++) 
+        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE << 9);
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        addrs[i] = frame_alloc(PAGE_SIZE << 9);
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        frame_free(addrs[i], PAGE_SIZE << 9);
+    if (test_bitmap_and_free_count())
+        printk(KERN_DEBUG "OK\n");
+    else
+        printk(KERN_ERR "Failed\n"); 
+
+    printk("PMM test case 6-6 (only 4MB page): ");
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        addrs[i] = frame_alloc(PAGE_SIZE << 10);
+    for (size_t i = 1; i <= T_ARRAY_SIZE; i++) 
+        frame_free(addrs[T_ARRAY_SIZE - i], PAGE_SIZE << 10);
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        addrs[i] = frame_alloc(PAGE_SIZE << 10);
+    for (size_t i = 0; i < T_ARRAY_SIZE; i++) 
+        frame_free(addrs[i], PAGE_SIZE << 10);
     if (test_bitmap_and_free_count())
         printk(KERN_DEBUG "OK\n");
     else
@@ -200,7 +273,5 @@ void test_frame_allocator(multiboot_memory_map_t *mmap, size_t mmap_count)
         else
             printk(KERN_ERR "Failed\n");
     }
-    
-    for (size_t order = 0; order < MAX_ORDER; order++)
-        printk("order%u free_count: %u\n", order, buddy_allocator.orders[order].free_count);
+    // print_free_count();
 }

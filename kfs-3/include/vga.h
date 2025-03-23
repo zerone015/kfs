@@ -7,6 +7,7 @@
 #define VGA_WIDTH		80
 #define VGA_HEIGHT		25
 #define VGA_SIZE		(VGA_WIDTH * VGA_HEIGHT)
+#define VGA_MEMORY		0xC00B8000
 
 #define CRTC_ADDRESS_PORT		0x3D4
 #define CRTC_DATA_PORT			0x3D5
@@ -46,9 +47,9 @@ enum vga_color {
 	VGA_COLOR_WHITE = 15,
 };
 
-void vga_init(void);
-void vga_set_blink(int flag);
-void vga_enable_cursor(uint8_t cursor_start, uint8_t cursor_end);
-void vga_update_cursor(size_t x, size_t y);
+extern void vga_init(void);
+extern void vga_set_blink(int flag);
+extern void vga_enable_cursor(uint8_t cursor_start, uint8_t cursor_end);
+extern void vga_update_cursor(size_t x, size_t y);
 
 #endif

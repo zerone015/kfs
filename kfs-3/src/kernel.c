@@ -8,10 +8,10 @@
 #include "panic.h"
 #include "utils.h"
 
-void kmain(multiboot_info_t* mbd, uint32_t magic, uint16_t *vga_memory)
+void kmain(multiboot_info_t* mbd, uint32_t magic)
 {
 	vga_init();
-	tty_init(vga_memory);
+	tty_init();
 	gdt_init();
 	idt_init();
 	pic_init();

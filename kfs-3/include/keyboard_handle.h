@@ -15,7 +15,7 @@
 #define F1_PRESS            0x3B
 #define F6_PRESS            0x40
 
-void keyboard_handler(void);
-void keyboard_handle(void);
+extern void keyboard_handler(void);
+extern void keyboard_handle(void);
 
 #endif

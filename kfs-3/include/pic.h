@@ -24,11 +24,11 @@
 #define ICW4_SFNM	    0x10		/* Special fully nested (not) */
 #define PIC_EOI		    0x20		/* End-of-interrupt command code */
 
-void pic_init(void);
-void pic_send_eoi(uint8_t irq);
-void pic_remap(int offset1, int offset2);
-void pic_disable(void); 
-void irq_set_mask(uint8_t irq_line);
-void irq_clear_mask(uint8_t irq_line);
+extern void pic_init(void);
+extern void pic_send_eoi(uint8_t irq);
+extern void pic_remap(int offset1, int offset2);
+extern void pic_disable(void); 
+extern void irq_set_mask(uint8_t irq_line);
+extern void irq_clear_mask(uint8_t irq_line);
 
 #endif

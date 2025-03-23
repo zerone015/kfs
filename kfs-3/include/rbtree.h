@@ -4,6 +4,17 @@
 #include "utils.h"
 #include <stdint.h>
 
+struct rb_node {
+	uint32_t		__rb_parent_color; 	/* parent and color*/
+	struct rb_node *rb_left;
+	struct rb_node *rb_right;
+} __attribute__((aligned(sizeof(int32_t))));
+
+
+struct rb_root {
+	struct rb_node *rb_node;
+};
+
 #define	RB_RED			0
 #define	RB_BLACK		1
 
@@ -20,16 +31,7 @@
 
 #define	rb_entry(ptr, type, member) container_of(ptr, type, member)
 
-struct rb_node {
-	uint32_t		__rb_parent_color; 	/* parent and color*/
-	struct rb_node *rb_left;
-	struct rb_node *rb_right;
-} __attribute__((aligned(sizeof(int32_t))));
-
-
-struct rb_root {
-	struct rb_node *rb_node;
-};
+extern void rb_insert_color(struct rb_node *node, struct rb_root *root);
 
 static inline void rb_set_parent(struct rb_node *rb, struct rb_node *p)
 {
@@ -39,6 +41,14 @@ static inline void rb_set_parent(struct rb_node *rb, struct rb_node *p)
 static inline void rb_set_parent_color(struct rb_node *rb, struct rb_node *p, int color)
 {
 	rb->__rb_parent_color = (unsigned long)p + color;
+}
+
+static inline void rb_link_node(struct rb_node *node, struct rb_node *parent, struct rb_node **rb_link)
+{
+	node->__rb_parent_color = (unsigned long)parent;
+	node->rb_left = node->rb_right = NULL;
+
+	*rb_link = node;
 }
 
 static inline void __rb_change_child(struct rb_node *old, struct rb_node *new, struct rb_node *parent, struct rb_root *root)
@@ -140,5 +150,6 @@ static inline struct rb_node *__rb_erase(struct rb_node *node, struct rb_root *r
 	}
 	return rebalance;
 }
+
 
 #endif

@@ -49,9 +49,8 @@ struct gdt_ptr {
     uint32_t base;
 } __attribute__((packed));
 
-
-void gdt_init(void);
-void gdt_set_entry(size_t idx, uint32_t limit, uint32_t base, uint8_t access, uint8_t flags);
-void gdt_load(uint32_t gdt_addr);
+extern void gdt_init(void);
+extern void gdt_set_entry(size_t idx, uint32_t limit, uint32_t base, uint8_t access, uint8_t flags);
+extern void gdt_load(uint32_t gdt_addr);
 
 #endif

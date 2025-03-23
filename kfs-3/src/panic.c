@@ -3,6 +3,11 @@
 
 void panic(const char *msg)
 {
-	printk(KERN_ERR "PANIC: %s\n", msg);
-	__asm__("cli; hlt");
+    printk(KERN_ERR "PANIC: %s\n", msg);
+    __asm__ volatile (
+        "cli\n"
+        "1:\n"
+        "hlt\n"
+        "jmp 1b"
+    );
 }
