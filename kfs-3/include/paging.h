@@ -10,10 +10,14 @@
 #define K_PAGE_DIR_BEGIN    0xFFFFFC00
 #define K_PAGE_DIR_END      0xFFFFFFFF
 
-#define PG_RDWR             0x003
-#define PG_PS               0x80              
+#define PG_PRESENT          0x001
+#define PG_RDWR             0x002
+#define PG_PS               0x80
 #define PG_GLOBAL           0x100
-#define PG_RESERVED_BIT     0x800
+#define PG_RESERVED         0x800
+#define PG_CONTIGUOUS       0x200
+
+#define PG_RESERVED_ENTRY    (PG_RESERVED | PG_PS | PG_RDWR)
 
 #define addr_from_tab(tab)          ((((uint32_t)(tab) & 0x003FF000) << 10) | (((uint32_t)(tab) & 0x00000FFF) << 10))
 #define tab_from_addr(addr)         (0xFFC00000 | (((uint32_t)(addr) & 0xFFC00000) >> 10) | (((uint32_t)(addr) & 0x003FF000) >> 10))

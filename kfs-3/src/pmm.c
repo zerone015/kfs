@@ -161,7 +161,7 @@ static uint32_t mmap_page_map(uint32_t mmap_addr, size_t mmap_size)
     uint32_t v_addr;
 
     mmap_size += K_PAGE_SIZE;
-    v_addr = page_map(mmap_addr, mmap_size, PG_RDWR | PG_PS);
+    v_addr = page_map(mmap_addr, mmap_size, PG_PS | PG_RDWR | PG_PRESENT);
     return v_addr | k_addr_get_offset(mmap_addr);
 }
 
