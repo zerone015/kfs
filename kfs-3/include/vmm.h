@@ -53,8 +53,7 @@ static inline struct k_vspace *stack_pop(struct free_stack *stack)
 {
 	if (stack_is_empty(stack))
 		return NULL;
-	stack->top_index--;
-	return stack->free_nodes[stack->top_index];
+	return stack->free_nodes[stack->top_index--];
 }
 
 #endif

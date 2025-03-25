@@ -27,7 +27,7 @@ static void kvs_init(struct k_vspace *kvs)
     uint32_t *page_dir;
 
     init_list_head(&kvm.list_head);
-    page_dir = (uint32_t *)dir_from_addr(K_PAGE_DIR_BEGIN);
+    page_dir = (uint32_t *)K_PAGE_DIR_BEGIN;
     while (*page_dir)
         page_dir++;
     kvs->addr = addr_from_dir(page_dir);
@@ -37,7 +37,7 @@ static void kvs_init(struct k_vspace *kvs)
     list_add(&kvs->list_head, &kvm.list_head);
 
     stack_init(&kvm.free_stack);
-    for (size_t i = 1; i < KVS_MAX_NODE + 1; i++)
+    for (size_t i = 1; i < KVS_MAX_NODE + 1; i++) 
         stack_push(&kvm.free_stack, &kvs[i]);
 }
 
@@ -52,7 +52,7 @@ void vspace_reserve(uint32_t v_addr, size_t size)
     page_dir[i] = PG_RESERVED_ENTRY;
 }
 
-void *page_alloc(size_t size)
+void *vb_alloc(size_t size)
 {
     struct k_vspace *cur;
     void *ret = NULL;
@@ -72,7 +72,7 @@ void *page_alloc(size_t size)
     return ret;
 }
 
-void page_free(void *addr)
+void vb_free(void *addr)
 {
     struct k_vspace *cur;
     struct k_vspace *new;
@@ -118,7 +118,7 @@ void vmm_init(void)
     free_frame = frame_alloc(K_PAGE_SIZE);
     if (!free_frame)
         panic("Not enough memory to initialize the virtual memory manager");
-    free_page = page_map(free_frame, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR);
+    free_page = page_map(free_frame, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR | PG_PRESENT);
     kvs_init((struct k_vspace *)free_page);
     free_page += KVS_MAX_SIZE + sizeof(struct k_vspace); //free_page 남은 메모리 힙에서 써야함
 }

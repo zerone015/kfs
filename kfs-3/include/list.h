@@ -78,4 +78,15 @@ static inline int list_is_head(const struct list_head *list, const struct list_h
 	     !list_entry_is_head(pos, head, member);				\
 	     pos = list_next_entry(pos, member))
 
+static inline size_t list_count_nodes(struct list_head *head)
+{
+	struct list_head *pos;
+	size_t count = 0;
+
+	list_for_each(pos, head)
+		count++;
+
+	return count;
+}
+
 #endif
