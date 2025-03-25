@@ -68,7 +68,7 @@ static inline void __vs_reserve(uint32_t v_addr, size_t size)
     page_dir[i] = PG_RESERVED_ENTRY;
 }
 
-static inline size_t __vs_size_with_frame_free(void *addr)
+static inline size_t __vs_size_with_clear(uint32_t addr)
 {
     uint32_t *page_dir;
     size_t size;
@@ -76,9 +76,11 @@ static inline size_t __vs_size_with_frame_free(void *addr)
     size = 0;
     page_dir = (uint32_t *)dir_from_addr(addr);
     do {
+        tlb_flush(addr);
         if (*page_dir & PG_PRESENT)
             frame_free(*page_dir & 0xFFC00000, K_PAGE_SIZE);
         size += K_PAGE_SIZE;
+        addr += K_PAGE_SIZE;
     } while (*page_dir++ & PG_CONTIGUOUS);
     return size;
 }
@@ -118,7 +120,7 @@ void vs_free(void *addr)
 {
     size_t size;
 
-    size = __vs_size_with_frame_free(addr);
+    size = __vs_size_with_clear((uint32_t)addr);
     __vs_add_and_merge((uint32_t)addr, size);
 }
 
