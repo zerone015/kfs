@@ -6,7 +6,7 @@
 
 struct buddy_allocator buddy_allocator;
 
-static void mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline void __mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
@@ -18,7 +18,7 @@ static void mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
 	}
 }
 
-static uint64_t find_ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline uint64_t __ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uint64_t ram_size;
     
@@ -32,13 +32,13 @@ static uint64_t find_ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
     return ram_size;
 }
 
-static size_t find_bitmap_size(uint64_t ram_size)
+static inline size_t __bitmap_size(uint64_t ram_size)
 {
     size_t first_size;
     size_t sum;
 
     sum = 0;
-    first_size = bitmap_first_size(ram_size);
+    first_size = __bitmap_first_size(ram_size);
     for (size_t order = 0; order < MAX_ORDER; order++) {
         sum += align_4byte(first_size);
         first_size /= 2;
@@ -48,7 +48,7 @@ static size_t find_bitmap_size(uint64_t ram_size)
     return align_page(sum);
 }
 
-static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline void __memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uint64_t align_addr;
 
@@ -65,11 +65,11 @@ static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
 	}
 }
 
-static void bitmap_init(uint32_t v_addr, uint64_t ram_size)
+static inline void __bitmap_init(uint32_t v_addr, uint64_t ram_size)
 {
     size_t first_size;
 
-    first_size = bitmap_first_size(ram_size);
+    first_size = __bitmap_first_size(ram_size);
     for (size_t order = 0; order < MAX_ORDER; order++) {
         buddy_allocator.orders[order].bitmap = (uint32_t *)v_addr;
         v_addr += align_4byte(first_size);
@@ -79,7 +79,7 @@ static void bitmap_init(uint32_t v_addr, uint64_t ram_size)
     }
 }
 
-static void frame_register(multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline void __frame_register(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uint32_t addr;
     size_t page_count;
@@ -96,7 +96,7 @@ static void frame_register(multiboot_memory_map_t* mmap, size_t mmap_count)
 	}
 }
 
-static void kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline void __kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     size_t kernel_size;
 
@@ -115,7 +115,7 @@ static void kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_coun
 	}
 }
 
-static multiboot_memory_map_t *find_bitmap_memory(multiboot_memory_map_t* mmap, size_t mmap_count, size_t bitmap_size)
+static inline multiboot_memory_map_t *__bitmap_memory(multiboot_memory_map_t* mmap, size_t mmap_count, size_t bitmap_size)
 {
     for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
@@ -126,14 +126,14 @@ static multiboot_memory_map_t *find_bitmap_memory(multiboot_memory_map_t* mmap, 
     return NULL;
 }
 
-static uint32_t bitmap_memory_reserve(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline uint32_t __bitmap_memory_reserve(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     multiboot_memory_map_t *useful_mmap;
     size_t bitmap_size;
     uint32_t v_addr;
 
-    bitmap_size = find_bitmap_size(ram_size);
-    useful_mmap = find_bitmap_memory(mmap, mmap_count, bitmap_size);
+    bitmap_size = __bitmap_size(ram_size);
+    useful_mmap = __bitmap_memory(mmap, mmap_count, bitmap_size);
     if (!useful_mmap)
         panic("Not enough memory for bitmap allocation!");
     v_addr = K_VSPACE_START | useful_mmap->addr;
@@ -147,25 +147,25 @@ static uint32_t bitmap_memory_reserve(uint64_t ram_size, multiboot_memory_map_t*
     return v_addr;
 }
 
-static void buddy_allocator_init(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline void __buddy_allocator_init(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uint32_t v_addr;
 
-    v_addr = bitmap_memory_reserve(ram_size, mmap, mmap_count);
-    bitmap_init(v_addr, ram_size);
-    frame_register(mmap, mmap_count);
+    v_addr = __bitmap_memory_reserve(ram_size, mmap, mmap_count);
+    __bitmap_init(v_addr, ram_size);
+    __frame_register(mmap, mmap_count);
 }
 
-static uint32_t mmap_page_map(uint32_t mmap_addr, size_t mmap_size)
+static inline uint32_t __mmap_vm_map(uint32_t mmap_addr, size_t mmap_size)
 {
     uint32_t v_addr;
 
     mmap_size += K_PAGE_SIZE;
-    v_addr = page_map(mmap_addr, mmap_size, PG_PS | PG_RDWR | PG_PRESENT);
+    v_addr = vm_initmap(mmap_addr, mmap_size, PG_PS | PG_RDWR | PG_PRESENT);
     return v_addr | k_addr_get_offset(mmap_addr);
 }
 
-static size_t find_mmap_count(size_t mmap_length)
+static inline size_t __mmap_count(size_t mmap_length)
 {
     size_t mmap_count;
     size_t mmap_size;
@@ -177,13 +177,13 @@ static size_t find_mmap_count(size_t mmap_length)
     return mmap_count;
 }
 
-static void mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_map_t *src, size_t mmap_count)
+static inline void __mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_map_t *src, size_t mmap_count)
 {
     for (size_t i = 0; i < mmap_count; i++) 
         memcpy(dest + i, src + i, sizeof(multiboot_memory_map_t));
 }
 
-static void mbd_mmap_page_unmap(multiboot_info_t* mbd)
+static inline void __mbd_mmap_vm_unmap(multiboot_info_t* mbd)
 {
     uint32_t *kpage_dir;
 
@@ -198,21 +198,79 @@ static void mbd_mmap_page_unmap(multiboot_info_t* mbd)
     tlb_flush((uint32_t)mbd);
 }
 
+uint32_t frame_alloc(size_t size)
+{
+	uint32_t *bitmap;
+	size_t order;
+	size_t bit_offset;
+
+	if (size > MAX_BLOCK_SIZE)
+		return 0;
+	order = 0;
+	while (size > __block_size(order))
+		order++;
+	for (size_t i = order; i < MAX_ORDER; i++) {
+		if (buddy_allocator.orders[i].free_count) {
+			bitmap = buddy_allocator.orders[i].bitmap;
+			while (!*bitmap)
+				bitmap++;
+			bit_offset = __bit_first_set_offset(buddy_allocator.orders[i].bitmap, bitmap);
+			__bit_unset(bitmap, __builtin_clz(*bitmap));
+			buddy_allocator.orders[i].free_count--;
+			while (i > order) {
+				i--;
+				bit_offset <<= 1;
+				bitmap = buddy_allocator.orders[i].bitmap;
+				__bit_set(&bitmap[bit_offset >> 5], (bit_offset ^ 1) & 31);
+				buddy_allocator.orders[i].free_count++;
+			}
+			return bit_offset << (PAGE_SHIFT + order);
+		}
+	}
+	return 0;
+}
+
+void frame_free(uint32_t addr, size_t size)
+{
+	uint32_t *bitmap;
+	size_t order;
+	size_t bit_offset;
+
+	if (!addr || size > MAX_BLOCK_SIZE)
+		return;
+	order = 0;
+	while (size > __block_size(order))
+		order++;
+	bit_offset = addr >> (PAGE_SHIFT + order);
+	bitmap = buddy_allocator.orders[order].bitmap;
+	while (order < MAX_ORDER - 1) {
+		if (!__bit_check(&bitmap[bit_offset >> 5], (bit_offset ^ 1) & 31))
+			break;
+		__bit_unset(&bitmap[bit_offset >> 5], (bit_offset ^ 1) & 31);
+		buddy_allocator.orders[order].free_count--;
+		bit_offset >>= 1;
+		order++;
+		bitmap = buddy_allocator.orders[order].bitmap;
+	}
+	__bit_set(&bitmap[bit_offset >> 5], bit_offset & 31);
+	buddy_allocator.orders[order].free_count++;
+}
+
 void pmm_init(multiboot_info_t* mbd)
 {
     uint64_t ram_size;
     multiboot_memory_map_t mmap[MAX_MMAP];
     size_t mmap_count;
 
-    mbd->mmap_addr = mmap_page_map(mbd->mmap_addr, mbd->mmap_length);
-    mmap_count = find_mmap_count(mbd->mmap_length);
+    mbd->mmap_addr = __mmap_vm_map(mbd->mmap_addr, mbd->mmap_length);
+    mmap_count = __mmap_count(mbd->mmap_length);
     if (mmap_count > MAX_MMAP)
         panic("The GRUB memory map is too large!");
-    mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
-    mbd_mmap_page_unmap(mbd);
-    mmap_sanitize(mmap, mmap_count);
-    ram_size = find_ram_size(mmap, mmap_count);
-    kernel_memory_reserve(mmap, mmap_count);
-    memory_align(mmap, mmap_count);
-    buddy_allocator_init(ram_size, mmap, mmap_count);
+    __mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
+    __mbd_mmap_vm_unmap(mbd);
+    __mmap_sanitize(mmap, mmap_count);
+    ram_size = __ram_size(mmap, mmap_count);
+    __kernel_memory_reserve(mmap, mmap_count);
+    __memory_align(mmap, mmap_count);
+    __buddy_allocator_init(ram_size, mmap, mmap_count);
 }

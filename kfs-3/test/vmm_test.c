@@ -4,26 +4,26 @@
 
 #define MAX_T_VMM_ARRAY 256
 
-void test_virtual_address_allocator(struct k_vspace_manager *kvm)
+void test_virtual_address_allocator(struct k_vspace_allocator *kva)
 {
     uint32_t addrs[MAX_T_VMM_ARRAY];
     struct k_vspace *cur;
     uint32_t initial_addr;
     uint32_t initial_size;
 
-    cur = list_first_entry(&kvm->list_head, typeof(*cur), list_head);
+    cur = list_first_entry(&kva->list_head, typeof(*cur), list_head);
     initial_addr = cur->addr;
     initial_size = cur->size;
 
     printk("VMM test case 1 (a single 4MB virtual block): ");
     {
 
-        addrs[0] = (uint32_t)vb_alloc(K_PAGE_SIZE);
+        addrs[0] = (uint32_t)vs_alloc(K_PAGE_SIZE);
         if (!(addrs[0] >= initial_addr && addrs[0] < initial_addr + initial_size && addrs[0] % K_PAGE_SIZE == 0)) {
             printk(KERN_ERR "Failed\n");
             return;
         }
-        cur = list_first_entry(&kvm->list_head, typeof(*cur), list_head);
+        cur = list_first_entry(&kva->list_head, typeof(*cur), list_head);
         if (addrs[0] >= cur->addr && addrs[0] < cur->addr + cur->size) {
             printk(KERN_ERR "Failed\n");
             return;
@@ -36,9 +36,9 @@ void test_virtual_address_allocator(struct k_vspace_manager *kvm)
             return;
         }
         
-        vb_free((void *)addrs[0]);
-        cur = list_first_entry(&kvm->list_head, typeof(*cur), list_head);
-        if ((initial_addr != cur->addr || initial_size != cur->size) || list_count_nodes(&kvm->list_head) != 1) {
+        vs_free((void *)addrs[0]);
+        cur = list_first_entry(&kva->list_head, typeof(*cur), list_head);
+        if ((initial_addr != cur->addr || initial_size != cur->size) || list_count_nodes(&kva->list_head) != 1) {
             printk(KERN_ERR "Failed\n");
             return;
         }
@@ -48,14 +48,14 @@ void test_virtual_address_allocator(struct k_vspace_manager *kvm)
     printk("VMM test case 2 (multiple 4MB virtual blocks): ");
     {
         for (size_t i = 0; i < initial_size / K_PAGE_SIZE; i++) {
-            addrs[i] = (uint32_t)vb_alloc(K_PAGE_SIZE);
+            addrs[i] = (uint32_t)vs_alloc(K_PAGE_SIZE);
             
             if (!(addrs[i] >= initial_addr && addrs[i] < initial_addr + initial_size && addrs[i] % K_PAGE_SIZE == 0)) {
                 printk(KERN_ERR "Failed\n");
                 return;
             }
 
-            cur = list_first_entry(&kvm->list_head, typeof(*cur), list_head);
+            cur = list_first_entry(&kva->list_head, typeof(*cur), list_head);
             if (addrs[i] >= cur->addr && addrs[i] < cur->addr + cur->size) {
                 printk(KERN_ERR "Failed\n");
                 return;
@@ -68,15 +68,15 @@ void test_virtual_address_allocator(struct k_vspace_manager *kvm)
                 return;
             }
         }
-        if (vb_alloc(K_PAGE_SIZE)) {
+        if (vs_alloc(K_PAGE_SIZE)) {
             printk(KERN_ERR "Failed\n");
             return;
         }
 
         for (size_t i = 0; i < initial_size / K_PAGE_SIZE; i++)
-            vb_free((void *)addrs[i]);
-        cur = list_first_entry(&kvm->list_head, typeof(*cur), list_head);
-        if ((initial_addr != cur->addr || initial_size != cur->size) || list_count_nodes(&kvm->list_head) != 1) {
+            vs_free((void *)addrs[i]);
+        cur = list_first_entry(&kva->list_head, typeof(*cur), list_head);
+        if ((initial_addr != cur->addr || initial_size != cur->size) || list_count_nodes(&kva->list_head) != 1) {
             printk(KERN_ERR "Failed\n");
             return;
         }      
@@ -88,7 +88,7 @@ void test_virtual_address_allocator(struct k_vspace_manager *kvm)
         uint32_t tmp;
         size_t size = K_PAGE_SIZE;
 
-        for (i = 0; (addrs[i] = (uint32_t)vb_alloc(size)); i++) {
+        for (i = 0; (addrs[i] = (uint32_t)vs_alloc(size)); i++) {
             for (size_t j = 0; j < size / K_PAGE_SIZE; j++) {
                 tmp = addrs[i] + (K_PAGE_SIZE * j);
                 if (!(tmp >= initial_addr && tmp < initial_addr + initial_size && tmp % K_PAGE_SIZE == 0)) {
@@ -97,7 +97,7 @@ void test_virtual_address_allocator(struct k_vspace_manager *kvm)
                 }
             }
 
-            cur = list_first_entry(&kvm->list_head, typeof(*cur), list_head);
+            cur = list_first_entry(&kva->list_head, typeof(*cur), list_head);
             for (size_t j = 0; j < size / K_PAGE_SIZE; j++) {
                 tmp = addrs[i] + (K_PAGE_SIZE * j);
                 if (tmp >= cur->addr && tmp < cur->addr + cur->size) {
@@ -118,9 +118,9 @@ void test_virtual_address_allocator(struct k_vspace_manager *kvm)
             size += K_PAGE_SIZE;
         }
         for (size_t j = 0; j < i; j++)
-            vb_free((void *)addrs[j]);
-        cur = list_first_entry(&kvm->list_head, typeof(*cur), list_head);
-        if ((initial_addr != cur->addr || initial_size != cur->size) || list_count_nodes(&kvm->list_head) != 1) {
+            vs_free((void *)addrs[j]);
+        cur = list_first_entry(&kva->list_head, typeof(*cur), list_head);
+        if ((initial_addr != cur->addr || initial_size != cur->size) || list_count_nodes(&kva->list_head) != 1) {
             printk(KERN_ERR "Failed\n");
             return;
         }      
