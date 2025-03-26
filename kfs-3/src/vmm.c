@@ -1,5 +1,4 @@
 #include "vmm.h"
-#include "rbtree.h"
 #include "pmm.h"
 #include "paging.h"
 #include "panic.h"
