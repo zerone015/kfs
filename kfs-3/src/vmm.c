@@ -4,7 +4,7 @@
 #include "paging.h"
 #include "panic.h"
 
-static struct k_vspace_allocator kva;
+static struct k_vspace_allocator kvs_alloc;
 
 static inline void stack_init(struct free_stack *stack)
 {
@@ -40,15 +40,15 @@ static inline void __kvs_init(struct k_vspace *kvs)
     while (!*page_dir)
         page_dir++;
     kvs->size = addr_from_dir(page_dir) - kvs->addr;
-    init_list_head(&kva.list_head);
-    list_add(&kvs->list_head, &kva.list_head);
+    init_list_head(&kvs_alloc.list_head);
+    list_add(&kvs->list_head, &kvs_alloc.list_head);
 }
 
 static inline void __free_node_stack_init(struct k_vspace *kvs)
 {
-    stack_init(&kva.free_stack);
+    stack_init(&kvs_alloc.free_stack);
     for (size_t i = 1; i < KVS_MAX_NODE + 1; i++) 
-        stack_push(&kva.free_stack, &kvs[i]);
+        stack_push(&kvs_alloc.free_stack, &kvs[i]);
 }
 
 static inline void __kvs_allocator_init(uint32_t k_repository)
@@ -78,7 +78,7 @@ static inline size_t __vs_size_with_clear(uint32_t addr)
     do {
         tlb_flush(addr);
         if (*page_dir & PG_PRESENT)
-            frame_free(*page_dir & 0xFFC00000, K_PAGE_SIZE);
+            free_pages(*page_dir & 0xFFC00000, K_PAGE_SIZE);
         size += K_PAGE_SIZE;
         addr += K_PAGE_SIZE;
     } while (*page_dir++ & PG_CONTIGUOUS);
@@ -90,11 +90,11 @@ static inline void __vs_add_and_merge(uint32_t addr, size_t size)
     struct k_vspace *cur;
     struct k_vspace *new;
     
-    list_for_each_entry(cur, &kva.list_head, list_head) {
+    list_for_each_entry(cur, &kvs_alloc.list_head, list_head) {
         if (addr < cur->addr)
             break;
     }
-    new = stack_pop(&kva.free_stack);
+    new = stack_pop(&kvs_alloc.free_stack);
     if (!new)
         panic("Incorrect usage of page_free");
     new->addr = addr;
@@ -102,17 +102,17 @@ static inline void __vs_add_and_merge(uint32_t addr, size_t size)
     list_add_tail(&new->list_head, &cur->list_head);
 
     cur = list_prev_entry(new, list_head);
-    if (!list_entry_is_head(cur, &kva.list_head, list_head) && cur->addr + cur->size == new->addr) {
+    if (!list_entry_is_head(cur, &kvs_alloc.list_head, list_head) && cur->addr + cur->size == new->addr) {
         new->addr = cur->addr;
         new->size += cur->size;
         list_del(&cur->list_head);
-        stack_push(&kva.free_stack, cur);
+        stack_push(&kvs_alloc.free_stack, cur);
     }
     cur = list_next_entry(new, list_head);
-    if (!list_entry_is_head(cur, &kva.list_head, list_head) && new->addr + new->size == cur->addr) {
+    if (!list_entry_is_head(cur, &kvs_alloc.list_head, list_head) && new->addr + new->size == cur->addr) {
         new->size += cur->size;
         list_del(&cur->list_head);
-        stack_push(&kva.free_stack, cur);
+        stack_push(&kvs_alloc.free_stack, cur);
     }
 }
 
@@ -130,14 +130,14 @@ void *vs_alloc(size_t size)
     void *ret;
 
     ret = NULL;
-    list_for_each_entry(cur, &kva.list_head, list_head) {
+    list_for_each_entry(cur, &kvs_alloc.list_head, list_head) {
         if (size <= cur->size) {
             cur->size -= size;
             ret = (void *)(cur->addr + cur->size);
             __vs_reserve((uint32_t)ret, size);
             if (!cur->size) {
                 list_del(&cur->list_head);
-                stack_push(&kva.free_stack, cur);
+                stack_push(&kvs_alloc.free_stack, cur);
             }
             break;
         }
@@ -145,7 +145,7 @@ void *vs_alloc(size_t size)
     return ret;
 }
 
-uint32_t vm_initmap(uint32_t p_addr, size_t size, uint32_t flags)
+uint32_t pages_initmap(uint32_t p_addr, size_t size, uint32_t flags)
 {
     uint32_t *page_dir;
 
@@ -163,13 +163,13 @@ uint32_t vm_initmap(uint32_t p_addr, size_t size, uint32_t flags)
 
 uint32_t vmm_init(void)
 {
-    uint32_t frame;
+    uint32_t page;
     uint32_t k_repository;
 
-    frame = frame_alloc(K_PAGE_SIZE);
-    if (!frame)
+    page = alloc_pages(K_PAGE_SIZE);
+    if (!page)
         panic("Not enough memory to initialize the virtual memory manager");
-    k_repository = vm_initmap(frame, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR | PG_PRESENT);
+    k_repository = pages_initmap(page, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR | PG_PRESENT);
     __kvs_allocator_init(k_repository);
     return k_repository + KVS_MAX_SIZE + sizeof(struct k_vspace);
 }

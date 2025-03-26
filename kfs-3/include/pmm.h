@@ -34,7 +34,7 @@ struct buddy_allocator {
 #define __bit_check(bitmap, offset) 		((*(bitmap) & (0x80000000U >> (offset))) != 0)
 
 extern void pmm_init(multiboot_info_t* mbd);
-extern uint32_t frame_alloc(size_t size);
-extern void frame_free(uint32_t addr, size_t size);
+extern uint32_t alloc_pages(size_t size);
+extern void free_pages(uint32_t addr, size_t size);
 
 #endif

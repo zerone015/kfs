@@ -4,7 +4,7 @@
 #include "paging.h"
 #include "vmm.h"
 
-struct buddy_allocator buddy_allocator;
+struct buddy_allocator bd_alloc;
 
 static inline void __mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
@@ -71,7 +71,7 @@ static inline void __bitmap_init(uint32_t v_addr, uint64_t ram_size)
 
     first_size = __bitmap_first_size(ram_size);
     for (size_t order = 0; order < MAX_ORDER; order++) {
-        buddy_allocator.orders[order].bitmap = (uint32_t *)v_addr;
+        bd_alloc.orders[order].bitmap = (uint32_t *)v_addr;
         v_addr += align_4byte(first_size);
         first_size /= 2;
         if (first_size < 32)
@@ -89,7 +89,7 @@ static inline void __frame_register(multiboot_memory_map_t* mmap, size_t mmap_co
             addr = (uint32_t)mmap[i].addr;
             page_count = mmap[i].len / PAGE_SIZE;
             while (page_count--) {
-                frame_free(addr, PAGE_SIZE);
+                free_pages(addr, PAGE_SIZE);
                 addr += PAGE_SIZE;
             }
         }
@@ -161,7 +161,7 @@ static inline uint32_t __mmap_vm_map(uint32_t mmap_addr, size_t mmap_size)
     uint32_t v_addr;
 
     mmap_size += K_PAGE_SIZE;
-    v_addr = vm_initmap(mmap_addr, mmap_size, PG_PS | PG_RDWR | PG_PRESENT);
+    v_addr = pages_initmap(mmap_addr, mmap_size, PG_PS | PG_RDWR | PG_PRESENT);
     return v_addr | k_addr_get_offset(mmap_addr);
 }
 
@@ -198,7 +198,7 @@ static inline void __mbd_mmap_vm_unmap(multiboot_info_t* mbd)
     tlb_flush((uint32_t)mbd);
 }
 
-uint32_t frame_alloc(size_t size)
+uint32_t alloc_pages(size_t size)
 {
 	uint32_t *bitmap;
 	size_t order;
@@ -210,19 +210,19 @@ uint32_t frame_alloc(size_t size)
 	while (size > __block_size(order))
 		order++;
 	for (size_t i = order; i < MAX_ORDER; i++) {
-		if (buddy_allocator.orders[i].free_count) {
-			bitmap = buddy_allocator.orders[i].bitmap;
+		if (bd_alloc.orders[i].free_count) {
+			bitmap = bd_alloc.orders[i].bitmap;
 			while (!*bitmap)
 				bitmap++;
-			bit_offset = __bit_first_set_offset(buddy_allocator.orders[i].bitmap, bitmap);
+			bit_offset = __bit_first_set_offset(bd_alloc.orders[i].bitmap, bitmap);
 			__bit_unset(bitmap, __builtin_clz(*bitmap));
-			buddy_allocator.orders[i].free_count--;
+			bd_alloc.orders[i].free_count--;
 			while (i > order) {
 				i--;
 				bit_offset <<= 1;
-				bitmap = buddy_allocator.orders[i].bitmap;
+				bitmap = bd_alloc.orders[i].bitmap;
 				__bit_set(&bitmap[bit_offset >> 5], (bit_offset ^ 1) & 31);
-				buddy_allocator.orders[i].free_count++;
+				bd_alloc.orders[i].free_count++;
 			}
 			return bit_offset << (PAGE_SHIFT + order);
 		}
@@ -230,7 +230,7 @@ uint32_t frame_alloc(size_t size)
 	return 0;
 }
 
-void frame_free(uint32_t addr, size_t size)
+void free_pages(uint32_t addr, size_t size)
 {
 	uint32_t *bitmap;
 	size_t order;
@@ -242,18 +242,18 @@ void frame_free(uint32_t addr, size_t size)
 	while (size > __block_size(order))
 		order++;
 	bit_offset = addr >> (PAGE_SHIFT + order);
-	bitmap = buddy_allocator.orders[order].bitmap;
+	bitmap = bd_alloc.orders[order].bitmap;
 	while (order < MAX_ORDER - 1) {
 		if (!__bit_check(&bitmap[bit_offset >> 5], (bit_offset ^ 1) & 31))
 			break;
 		__bit_unset(&bitmap[bit_offset >> 5], (bit_offset ^ 1) & 31);
-		buddy_allocator.orders[order].free_count--;
+		bd_alloc.orders[order].free_count--;
 		bit_offset >>= 1;
 		order++;
-		bitmap = buddy_allocator.orders[order].bitmap;
+		bitmap = bd_alloc.orders[order].bitmap;
 	}
 	__bit_set(&bitmap[bit_offset >> 5], bit_offset & 31);
-	buddy_allocator.orders[order].free_count++;
+	bd_alloc.orders[order].free_count++;
 }
 
 void pmm_init(multiboot_info_t* mbd)
