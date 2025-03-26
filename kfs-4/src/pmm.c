@@ -135,7 +135,7 @@ static inline uint32_t __bitmap_memory_reserve(uint64_t ram_size, multiboot_memo
     bitmap_size = __bitmap_size(ram_size);
     useful_mmap = __bitmap_memory(mmap, mmap_count, bitmap_size);
     if (!useful_mmap)
-        panic("Not enough memory for bitmap allocation!");
+        panic("Not enough memory for pmm bitmap allocation");
     v_addr = K_VSPACE_START | useful_mmap->addr;
     memset((void *)v_addr, 0, bitmap_size);
     if (useful_mmap->len == bitmap_size) {
@@ -265,7 +265,7 @@ void pmm_init(multiboot_info_t* mbd)
     mbd->mmap_addr = __mmap_pages_map(mbd->mmap_addr, mbd->mmap_length);
     mmap_count = __mmap_count(mbd->mmap_length);
     if (mmap_count > MAX_MMAP)
-        panic("The GRUB memory map is too large!");
+        panic("The GRUB memory map is too large");
     __mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
     __mbd_mmap_pages_unmap(mbd);
     __mmap_sanitize(mmap, mmap_count);

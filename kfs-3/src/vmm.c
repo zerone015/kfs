@@ -95,7 +95,7 @@ static inline void __vs_add_and_merge(uint32_t addr, size_t size)
     }
     new = stack_pop(&kvs_alloc.free_stack);
     if (!new)
-        panic("Incorrect usage of page_free");
+        panic("Incorrect usage of vs_free");
     new->addr = addr;
     new->size = size;
     list_add_tail(&new->list_head, &cur->list_head);
