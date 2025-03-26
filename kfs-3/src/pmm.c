@@ -79,7 +79,7 @@ static inline void __bitmap_init(uint32_t v_addr, uint64_t ram_size)
     }
 }
 
-static inline void __frame_register(multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline void __pages_register(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uint32_t addr;
     size_t page_count;
@@ -147,16 +147,16 @@ static inline uint32_t __bitmap_memory_reserve(uint64_t ram_size, multiboot_memo
     return v_addr;
 }
 
-static inline void __buddy_allocator_init(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline void __page_allocator_init(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uint32_t v_addr;
 
     v_addr = __bitmap_memory_reserve(ram_size, mmap, mmap_count);
     __bitmap_init(v_addr, ram_size);
-    __frame_register(mmap, mmap_count);
+    __pages_register(mmap, mmap_count);
 }
 
-static inline uint32_t __mmap_vm_map(uint32_t mmap_addr, size_t mmap_size)
+static inline uint32_t __mmap_pages_map(uint32_t mmap_addr, size_t mmap_size)
 {
     uint32_t v_addr;
 
@@ -183,7 +183,7 @@ static inline void __mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_
         memcpy(dest + i, src + i, sizeof(multiboot_memory_map_t));
 }
 
-static inline void __mbd_mmap_vm_unmap(multiboot_info_t* mbd)
+static inline void __mbd_mmap_pages_unmap(multiboot_info_t* mbd)
 {
     uint32_t *kpage_dir;
 
@@ -262,15 +262,15 @@ void pmm_init(multiboot_info_t* mbd)
     multiboot_memory_map_t mmap[MAX_MMAP];
     size_t mmap_count;
 
-    mbd->mmap_addr = __mmap_vm_map(mbd->mmap_addr, mbd->mmap_length);
+    mbd->mmap_addr = __mmap_pages_map(mbd->mmap_addr, mbd->mmap_length);
     mmap_count = __mmap_count(mbd->mmap_length);
     if (mmap_count > MAX_MMAP)
         panic("The GRUB memory map is too large!");
     __mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
-    __mbd_mmap_vm_unmap(mbd);
+    __mbd_mmap_pages_unmap(mbd);
     __mmap_sanitize(mmap, mmap_count);
     ram_size = __ram_size(mmap, mmap_count);
     __kernel_memory_reserve(mmap, mmap_count);
     __memory_align(mmap, mmap_count);
-    __buddy_allocator_init(ram_size, mmap, mmap_count);
+    __page_allocator_init(ram_size, mmap, mmap_count);
 }
