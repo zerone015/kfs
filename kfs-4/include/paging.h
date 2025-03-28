@@ -10,6 +10,12 @@
 #define K_PAGE_DIR_BEGIN    0xFFFFFC00
 #define K_PAGE_DIR_END      0xFFFFFFFF
 
+#define K_VSPACE_START		0xC0000000
+#define K_VSPACE_END		0xFFFFFFFF
+#define K_VSPACE_SIZE		0x40000000
+#define K_VLOAD_START		(K_VSPACE_START | K_PLOAD_START)
+#define K_VLOAD_END			(K_VSPACE_START | K_PLOAD_END)
+
 #define PG_PRESENT          0x001
 #define PG_RDWR             0x002
 #define PG_PS               0x80
@@ -27,6 +33,7 @@
 #define addr_get_offset(addr)       ((uint32_t)(addr) & 0x00000FFF)
 #define k_addr_erase_offset(addr)   ((uint32_t)(addr) & 0xFFC00000)
 #define k_addr_get_offset(addr)     ((uint32_t)(addr) & 0x003FFFFF)
+#define is_kernel_space(addr)       ((uint32_t)(addr) >= K_VSPACE_START)
 
 static inline void tlb_flush_all(void) 
 {

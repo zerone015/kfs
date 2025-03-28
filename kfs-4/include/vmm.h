@@ -6,11 +6,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define K_VSPACE_START		0xC0000000
-#define K_VSPACE_END		0xFFFFFFFF
-#define K_VSPACE_SIZE		0x40000000
-#define K_VLOAD_START		(K_VSPACE_START | K_PLOAD_START)
-#define K_VLOAD_END			(K_VSPACE_START | K_PLOAD_END)
 #define KVS_MAX_NODE		(K_VSPACE_SIZE / K_PAGE_SIZE / 2)
 #define KVS_MAX_SIZE		(KVS_MAX_NODE * sizeof(struct k_vspace))
 

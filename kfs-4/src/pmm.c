@@ -65,7 +65,7 @@ static inline void __memory_align(multiboot_memory_map_t* mmap, size_t mmap_coun
 	}
 }
 
-static inline void __bitmap_init(uint32_t v_addr, uint64_t ram_size)
+static inline void __bd_allocator_init(uint32_t v_addr, uint64_t ram_size)
 {
     size_t first_size;
 
@@ -126,7 +126,7 @@ static inline multiboot_memory_map_t *__bitmap_memory(multiboot_memory_map_t* mm
     return NULL;
 }
 
-static inline uint32_t __bitmap_memory_reserve(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline uint32_t __bd_allocator_memory_reserve(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     multiboot_memory_map_t *useful_mmap;
     size_t bitmap_size;
@@ -135,7 +135,7 @@ static inline uint32_t __bitmap_memory_reserve(uint64_t ram_size, multiboot_memo
     bitmap_size = __bitmap_size(ram_size);
     useful_mmap = __bitmap_memory(mmap, mmap_count, bitmap_size);
     if (!useful_mmap)
-        panic("Not enough memory for pmm bitmap allocation");
+        panic_trigger("Not enough memory for pmm bitmap allocation");
     v_addr = K_VSPACE_START | useful_mmap->addr;
     memset((void *)v_addr, 0, bitmap_size);
     if (useful_mmap->len == bitmap_size) {
@@ -151,8 +151,8 @@ static inline void __page_allocator_init(uint64_t ram_size, multiboot_memory_map
 {
     uint32_t v_addr;
 
-    v_addr = __bitmap_memory_reserve(ram_size, mmap, mmap_count);
-    __bitmap_init(v_addr, ram_size);
+    v_addr = __bd_allocator_memory_reserve(ram_size, mmap, mmap_count);
+    __bd_allocator_init(v_addr, ram_size);
     __pages_register(mmap, mmap_count);
 }
 
@@ -265,7 +265,7 @@ void pmm_init(multiboot_info_t* mbd)
     mbd->mmap_addr = __mmap_pages_map(mbd->mmap_addr, mbd->mmap_length);
     mmap_count = __mmap_count(mbd->mmap_length);
     if (mmap_count > MAX_MMAP)
-        panic("The GRUB memory map is too large");
+        panic_trigger("The GRUB memory map is too large");
     __mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
     __mbd_mmap_pages_unmap(mbd);
     __mmap_sanitize(mmap, mmap_count);

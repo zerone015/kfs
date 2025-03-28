@@ -87,13 +87,13 @@ void printk(const char *__restrict format, ...)
 	if (HAS_LOG_LEVEL(format)) {
 		switch (format[1] - '0') {
 		case 0:
-			tty_set_color(VGA_ENTRY_COLOR(VGA_COLOR_RED, VGA_COLOR_BLACK));
+			tty_set_color(vga_entry_color(VGA_COLOR_RED, VGA_COLOR_BLACK));
 			break;
 		case 1:
-			tty_set_color(VGA_ENTRY_COLOR(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
+			tty_set_color(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
 			break;
 		case 2:
-			tty_set_color(VGA_ENTRY_COLOR(VGA_COLOR_GREEN, VGA_COLOR_BLACK));
+			tty_set_color(vga_entry_color(VGA_COLOR_GREEN, VGA_COLOR_BLACK));
 			break;
 		}
 		format += 3;
@@ -135,6 +135,6 @@ void printk(const char *__restrict format, ...)
 		}
 		format++;
 	}
-	tty_set_color(VGA_ENTRY_COLOR(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
+	tty_set_color(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
 	va_end(ap);
 }

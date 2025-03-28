@@ -95,7 +95,7 @@ static inline void __vs_add_and_merge(uint32_t addr, size_t size)
     }
     new = stack_pop(&kvs_alloc.free_stack);
     if (!new)
-        panic("Incorrect usage of vs_free");
+        panic_trigger("Incorrect usage of vs_free");
     new->addr = addr;
     new->size = size;
     list_add_tail(&new->list_head, &cur->list_head);
@@ -167,7 +167,7 @@ uint32_t vmm_init(void)
 
     page = alloc_pages(K_PAGE_SIZE);
     if (!page)
-        panic("Not enough memory to initialize the virtual memory manager");
+        panic_trigger("Not enough memory to initialize the virtual memory manager");
     k_repository = pages_initmap(page, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR | PG_PRESENT);
     __kvs_allocator_init(k_repository);
     return k_repository + KVS_MAX_SIZE + sizeof(struct k_vspace);

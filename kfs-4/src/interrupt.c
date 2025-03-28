@@ -1,8 +1,11 @@
-#include "keyboard_handle.h"
+#include "interrupt.h"
 #include "tty.h"
 #include "pic.h"
 #include "io.h"
 #include "printk.h"
+#include "pmm.h"
+#include "paging.h"
+#include "panic.h"
 
 /* This is valid only for US QWERTY keyboards. */
 static const char key_map[128] =
@@ -112,4 +115,26 @@ void keyboard_handle(void)
 			shift_flag = 0;
 	}
 	pic_send_eoi(KEYBOARD_IRQ);
+}
+
+void page_fault_handle(uint32_t error_code, struct panic_info info) 
+{
+    uint32_t fault_addr;
+    uint32_t *page_dir;
+
+    __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr));
+    if (!(error_code & K_NO_PRESENT_MASK)) {
+        page_dir = (uint32_t *)dir_from_addr(fault_addr);
+        if (*page_dir & PG_RESERVED) {
+            *page_dir = alloc_pages(K_PAGE_SIZE) + ((*page_dir & 0x17FF) | 0x1);
+            return;
+        }
+    }
+    panic("page fault", info);
+}
+
+void division_error_handle(struct panic_info info)
+{
+    if (is_kernel_space(info.eip))
+        panic("division error", info);
 }

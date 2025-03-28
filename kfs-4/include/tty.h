@@ -34,5 +34,6 @@ extern void		tty_delete_input_char(void);
 extern void		tty_flush_input(void);
 extern void		tty_putchar(char c);
 extern void		tty_write(const char *data, size_t size);
+extern void     tty_clear_screen(void);
 
 #endif

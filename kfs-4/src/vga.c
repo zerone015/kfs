@@ -32,6 +32,12 @@ void vga_enable_cursor(uint8_t cursor_start, uint8_t cursor_end)
 	outb(CRTC_DATA_PORT, (inb(CRTC_DATA_PORT) & 0xE0) | cursor_end);
 }
 
+void vga_disable_cursor(void)
+{
+	outb(CRTC_ADDRESS_PORT, CURSOR_START_IDX);
+	outb(CRTC_DATA_PORT, CURSOR_DISABLE_BIT);
+}
+
 void vga_update_cursor(size_t x, size_t y)
 {
 	size_t pos;

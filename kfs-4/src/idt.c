@@ -1,7 +1,6 @@
 #include "idt.h"
 #include "pic.h"
-#include "keyboard_handle.h"
-#include "page_fault_handle.h"
+#include "interrupt.h"
 
 static struct idt_entry idt[IDT_SIZE];
 
