@@ -79,6 +79,131 @@ static const char shift_key_map[128] =
     0,  /* All other keys are undefined */
 };
 
+void division_error_handle(struct interrupt_frame iframe)
+{
+    panic("division error exception", &iframe);
+}
+
+void debug_handle(struct interrupt_frame iframe)
+{
+    (void)iframe;
+    printk("debug exception\n");
+}
+
+void nmi_handle(struct interrupt_frame iframe)
+{
+    panic("fatal hardware error", &iframe);
+}
+
+void breakpoint_handle(struct interrupt_frame iframe)
+{
+    (void)iframe;
+    printk("breakpoint exception\n");
+}
+
+void overflow_handle(struct interrupt_frame iframe)
+{
+    panic("overflow exception", &iframe);
+}
+
+void bound_range_handle(struct interrupt_frame iframe)
+{
+    panic("bound range exception", &iframe);
+}
+
+void invalid_opcode_handle(struct interrupt_frame iframe)
+{
+    panic("invalid opcode", &iframe);
+}
+
+void device_not_avail_handle(struct interrupt_frame iframe)
+{
+    panic("device not available", &iframe);
+}
+
+void double_fault_handle(struct interrupt_frame iframe)
+{
+    panic("double fault", &iframe);
+}
+
+void coprocessor_handle(struct interrupt_frame iframe)
+{
+    panic("coprocessor segment overrun", &iframe);
+}
+
+void invalid_tss_handle(struct interrupt_frame iframe)
+{
+    panic("invalid tss", &iframe);
+}
+
+void segment_not_present_handle(struct interrupt_frame iframe)
+{
+    panic("segment not present", &iframe);
+}
+
+void stack_fault_handle(struct interrupt_frame iframe)
+{
+    panic("stack fault", &iframe);
+}
+
+void gpf_handle(struct interrupt_frame iframe)
+{
+    panic("general protection fault", &iframe);
+}
+
+void page_fault_handle(uint32_t error_code, struct interrupt_frame iframe) 
+{
+    uint32_t fault_addr;
+    uint32_t *page_dir;
+
+    __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr));
+    page_dir = (uint32_t *)dir_from_addr(fault_addr);
+    if (!__is_reserve(error_code, *page_dir))
+        panic("page fault", &iframe);
+    *page_dir = __alloc_entry(*page_dir);
+}
+
+void floating_point_handle(struct interrupt_frame iframe)
+{
+    panic("floating point exception", &iframe);
+}
+
+void alignment_check_handle(struct interrupt_frame iframe)
+{
+    panic("alignment check exception", &iframe);
+}
+
+void machine_check_handle(struct interrupt_frame iframe)
+{
+    panic("machine check exception", &iframe);
+}
+
+void simd_floating_point_handle(struct interrupt_frame iframe)
+{
+    panic("simd floating point exception", &iframe);
+}
+
+void virtualization_handle(struct interrupt_frame iframe)
+{
+    panic("virtualization exception", &iframe);
+}
+
+void control_protection_handle(struct interrupt_frame iframe)
+{
+    panic("control protection exception", &iframe);
+}
+
+void fpu_error_handle(struct interrupt_frame iframe)
+{
+    panic("FPU error interrupt", &iframe);
+}
+
+void pit_handle(struct interrupt_frame iframe)
+{
+    (void)iframe;
+    printk("pit handler\n");
+}
+
 void keyboard_handle(void)
 {
 	static uint8_t shift_flag;
@@ -115,26 +240,4 @@ void keyboard_handle(void)
 			shift_flag = 0;
 	}
 	pic_send_eoi(KEYBOARD_IRQ);
-}
-
-void page_fault_handle(uint32_t error_code, struct panic_info info) 
-{
-    uint32_t fault_addr;
-    uint32_t *page_dir;
-
-    __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr));
-    if (!(error_code & K_NO_PRESENT_MASK)) {
-        page_dir = (uint32_t *)dir_from_addr(fault_addr);
-        if (*page_dir & PG_RESERVED) {
-            *page_dir = alloc_pages(K_PAGE_SIZE) + ((*page_dir & 0x17FF) | 0x1);
-            return;
-        }
-    }
-    panic("page fault", info);
-}
-
-void division_error_handle(struct panic_info info)
-{
-    if (is_kernel_space(info.eip))
-        panic("division error", info);
 }

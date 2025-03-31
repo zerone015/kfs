@@ -67,7 +67,7 @@ static inline void __vs_reserve(uint32_t v_addr, size_t size)
     page_dir[i] = PG_RESERVED_ENTRY;
 }
 
-static inline size_t __vs_size_with_clear(uint32_t addr)
+static inline size_t __vs_size_with_free(uint32_t addr)
 {
     uint32_t *page_dir;
     size_t size;
@@ -119,7 +119,7 @@ void vs_free(void *addr)
 {
     size_t size;
 
-    size = __vs_size_with_clear((uint32_t)addr);
+    size = __vs_size_with_free((uint32_t)addr);
     __vs_add_and_merge((uint32_t)addr, size);
 }
 

@@ -7,5 +7,6 @@ panic_trigger:
     push dword [esp + 8]
     pushad
     add dword [esp + 12], 8
-    push dword [esp + 48]
+    push esp
+    push dword [esp + 52]
     call panic

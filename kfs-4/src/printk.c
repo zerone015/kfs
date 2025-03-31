@@ -84,7 +84,7 @@ void printk(const char *__restrict format, ...)
 	va_list	ap;
 
 	va_start(ap, format);
-	if (HAS_LOG_LEVEL(format)) {
+	if (has_log_level(format)) {
 		switch (format[1] - '0') {
 		case 0:
 			tty_set_color(vga_entry_color(VGA_COLOR_RED, VGA_COLOR_BLACK));

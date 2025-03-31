@@ -2,7 +2,7 @@ section .data
     error_msg db "!!panic test!!", 0 
 section .text
 extern panic_trigger
-global panic_test
+global panic_test1
 global panic_test2
 panic_test1:
     push 15
