@@ -1,7 +1,7 @@
 section .text
 extern panic
-global panic_trigger
-panic_trigger:
+global do_panic
+do_panic:
     pushfd
     push cs
     push dword [esp + 8]

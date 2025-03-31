@@ -7,6 +7,6 @@
 extern char stack_top;
 
 extern void panic(const char *msg, struct interrupt_frame *iframe);
-extern void panic_trigger(const char *msg);
+extern void do_panic(const char *msg);
 
 #endif

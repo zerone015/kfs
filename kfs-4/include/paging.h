@@ -7,8 +7,8 @@
 #define K_PAGE_SIZE         (1024U * 1024U * 4U)
 #define PAGE_SHIFT			__builtin_ctz(PAGE_SIZE)
 #define MAX_RAM_SIZE		0x100000000U
-#define K_PAGE_DIR_BEGIN    0xFFFFFC00
-#define K_PAGE_DIR_END      0xFFFFFFFF
+#define K_PDE_START         0xFFFFFC00
+#define K_PDE_END           0xFFFFFFFF
 
 #define K_VSPACE_START		0xC0000000
 #define K_VSPACE_END		0xFFFFFFFF
@@ -25,10 +25,10 @@
 
 #define PG_RESERVED_ENTRY    (PG_RESERVED | PG_PS | PG_RDWR)
 
-#define addr_from_tab(tab)          ((((uint32_t)(tab) & 0x003FF000) << 10) | (((uint32_t)(tab) & 0x00000FFF) << 10))
-#define tab_from_addr(addr)         (0xFFC00000 | (((uint32_t)(addr) & 0xFFC00000) >> 10) | (((uint32_t)(addr) & 0x003FF000) >> 10))
-#define addr_from_dir(dir)          (((uint32_t)(dir) & 0x00000FFF) << 20)
-#define dir_from_addr(addr)         (0xFFFFF000 | (((uint32_t)(addr) & 0xFFC00000) >> 20))
+#define addr_from_pte(pte)          ((((uint32_t)(pte) & 0x003FF000) << 10) | (((uint32_t)(pte) & 0x00000FFF) << 10))
+#define pte_from_addr(addr)         (0xFFC00000 | (((uint32_t)(addr) & 0xFFC00000) >> 10) | (((uint32_t)(addr) & 0x003FF000) >> 10))
+#define addr_from_pde(dir)          (((uint32_t)(dir) & 0x00000FFF) << 20)
+#define pde_from_addr(addr)         (0xFFFFF000 | (((uint32_t)(addr) & 0xFFC00000) >> 20))
 #define addr_erase_offset(addr)     ((uint32_t)(addr) & 0xFFFFF000)
 #define addr_get_offset(addr)       ((uint32_t)(addr) & 0x00000FFF)
 #define k_addr_erase_offset(addr)   ((uint32_t)(addr) & 0xFFC00000)

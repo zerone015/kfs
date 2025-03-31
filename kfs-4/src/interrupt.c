@@ -154,13 +154,13 @@ void gpf_handle(struct interrupt_frame iframe)
 void page_fault_handle(uint32_t error_code, struct interrupt_frame iframe) 
 {
     uint32_t fault_addr;
-    uint32_t *page_dir;
+    uint32_t *pde;
 
     __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr));
-    page_dir = (uint32_t *)dir_from_addr(fault_addr);
-    if (!__is_reserve(error_code, *page_dir))
+    pde = (uint32_t *)pde_from_addr(fault_addr);
+    if (!__is_reserve(error_code, *pde))
         panic("page fault", &iframe);
-    *page_dir = __alloc_entry(*page_dir);
+    *pde = __make_pde(*pde);
 }
 
 void floating_point_handle(struct interrupt_frame iframe)
@@ -220,20 +220,20 @@ void keyboard_handle(void)
 			tty_change(keycode - F1_PRESS);
 		}
 		else if (c == '\b') {
-			tty_delete_input_char();	
+			tty_delete_input();	
 		}
 		else if (c == '\n') {
-			tty_flush_input();
+			tty_enter_input();
 			printk(TTY_PROMPT);
 		}
 		else if (c == '\t') {
 			for (size_t i = 0; i < TAB_SIZE; i++)
-				tty_insert_input_char(' ');
+				tty_add_input(' ');
 		}
 		else if (c) {
 			if (shift_flag)
 				c = shift_key_map[keycode];
-			tty_insert_input_char(c);
+			tty_add_input(c);
 		}
 	} else {
 		if (keycode == LEFT_SHIFT_RELEASE || keycode == RIGHT_SHIFT_RELEASE)

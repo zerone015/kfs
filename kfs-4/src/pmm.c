@@ -4,7 +4,7 @@
 #include "paging.h"
 #include "vmm.h"
 
-struct buddy_allocator bd_alloc;
+static struct buddy_allocator bd_alloc;
 
 static inline void __mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
@@ -135,7 +135,7 @@ static inline uint32_t __bd_allocator_memory_reserve(uint64_t ram_size, multiboo
     bitmap_size = __bitmap_size(ram_size);
     useful_mmap = __bitmap_memory(mmap, mmap_count, bitmap_size);
     if (!useful_mmap)
-        panic_trigger("Not enough memory for pmm bitmap allocation");
+        do_panic("Not enough memory for pmm bitmap allocation");
     v_addr = K_VSPACE_START | useful_mmap->addr;
     memset((void *)v_addr, 0, bitmap_size);
     if (useful_mmap->len == bitmap_size) {
@@ -185,16 +185,16 @@ static inline void __mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_
 
 static inline void __mbd_mmap_pages_unmap(multiboot_info_t* mbd)
 {
-    uint32_t *kpage_dir;
+    uint32_t *pde;
 
-    kpage_dir = (uint32_t *)dir_from_addr(mbd->mmap_addr);
+    pde = (uint32_t *)pde_from_addr(mbd->mmap_addr);
     for (size_t i = 0; i < ((align_kpage(mbd->mmap_length) + K_PAGE_SIZE) / K_PAGE_SIZE); i++) {
-        kpage_dir[i] = 0;
+        pde[i] = 0;
         tlb_flush(mbd->mmap_addr);
         mbd->mmap_addr += K_PAGE_SIZE;
     }
-    kpage_dir = (uint32_t *)dir_from_addr(mbd);
-    *kpage_dir = 0;
+    pde = (uint32_t *)pde_from_addr(mbd);
+    *pde = 0;
     tlb_flush((uint32_t)mbd);
 }
 
@@ -265,7 +265,7 @@ void pmm_init(multiboot_info_t* mbd)
     mbd->mmap_addr = __mmap_pages_map(mbd->mmap_addr, mbd->mmap_length);
     mmap_count = __mmap_count(mbd->mmap_length);
     if (mmap_count > MAX_MMAP)
-        panic_trigger("The GRUB memory map is too large");
+        do_panic("The GRUB memory map is too large");
     __mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
     __mbd_mmap_pages_unmap(mbd);
     __mmap_sanitize(mmap, mmap_count);

@@ -29,11 +29,11 @@ extern void		tty_init(void);
 extern void		tty_putentryat(char c, uint8_t color, size_t x, size_t y);
 extern void		tty_set_color(uint8_t color);
 extern void		tty_change(size_t target_tty_idx);
-extern void		tty_insert_input_char(char c);
-extern void		tty_delete_input_char(void);
-extern void		tty_flush_input(void);
+extern void		tty_add_input(char c);
+extern void		tty_delete_input(void);
+extern void		tty_enter_input(void);
 extern void		tty_putchar(char c);
 extern void		tty_write(const char *data, size_t size);
-extern void     tty_clear_screen(void);
+extern void     tty_clear(void);
 
 #endif

@@ -52,7 +52,7 @@ static inline void __system_halt(void)
 
 void panic(const char *msg, struct interrupt_frame *iframe)
 {
-    tty_clear_screen();
+    tty_clear();
     __hex_dump(iframe);
     printk("Kernel panic: %s\n", msg);
     vga_disable_cursor();

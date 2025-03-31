@@ -17,9 +17,9 @@ void kmain(multiboot_info_t* mbd, uint32_t magic)
 	idt_init();
 	pic_init();
 	if (magic != MULTIBOOT_BOOTLOADER_MAGIC)
-		panic_trigger("Invalid magic number");
+		do_panic("Invalid magic number");
 	if (!check_flag(mbd->flags, 6))
-		panic_trigger("invalid memory map given by GRUB bootloader");
+		do_panic("invalid memory map given by GRUB bootloader");
 	pmm_init(mbd);
 	vmm_init();
 }

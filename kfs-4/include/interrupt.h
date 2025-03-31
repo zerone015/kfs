@@ -36,7 +36,7 @@ struct interrupt_frame {
 /* page fault handler */
 #define EC_PG_PRESENT               PG_PRESENT
 #define __is_reserve(ec, entry)     (!((ec) & EC_PG_PRESENT) && ((entry) & PG_RESERVED))
-#define __alloc_entry(entry)        (alloc_pages(K_PAGE_SIZE) + (((entry) & 0x17FF) | 0x1))
+#define __make_pde(entry)        (alloc_pages(K_PAGE_SIZE) + (((entry) & 0x17FF) | 0x1))
 
 extern void panic(const char *msg, struct interrupt_frame *iframe);
 

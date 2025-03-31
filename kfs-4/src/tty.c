@@ -85,13 +85,13 @@ void tty_scroll(void)
 	tty[cur_tty].row--;
 }
 
-void tty_insert_input_char(char c)
+void tty_add_input(char c)
 {
 	tty_putchar(c);
 	tty[cur_tty].input_length++;
 }
 
-void tty_delete_input_char(void)
+void tty_delete_input(void)
 {
 	if (tty[cur_tty].input_length > 0) {
 		tty[cur_tty].input_length--;
@@ -101,7 +101,7 @@ void tty_delete_input_char(void)
 	}
 }
 
-void tty_flush_input(void)
+void tty_enter_input(void)
 {
 	uint16_t *input_head;
 	size_t input_head_idx;
@@ -140,7 +140,7 @@ void tty_write(const char *data, size_t size)
 		tty_putchar(data[i]);
 }
 
-void tty_clear_screen(void)
+void tty_clear(void)
 {
 	for (size_t i = 0; i < VGA_WIDTH * tty[cur_tty].row + tty[cur_tty].column; i++)
 		vga_buf[i] = vga_entry(' ', tty[cur_tty].color);
