@@ -4,6 +4,7 @@
 #include "list.h"
 #include "paging.h"
 #include <stddef.h>
+#include <stdint.h>
 
 struct malloc_chunk {
     size_t prev_size;
@@ -33,7 +34,7 @@ struct malloc_chunk {
 #define __chunk2mem(p)      ((void *)((uint8_t *)(p) + 2*SIZE_SZ))
 #define __mem2chunk(mem)    ((struct malloc_chunk *)((uint8_t *)(mem) - 2*SIZE_SZ))
 
-extern void hmm_init(uint32_t mem);
+extern void hmm_init(uintptr_t mem);
 extern void *kmalloc(size_t size);
 
 #endif

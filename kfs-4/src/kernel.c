@@ -12,7 +12,7 @@
 
 void kmain(multiboot_info_t* mbd, uint32_t magic)
 {
-	uint32_t mem;
+	uintptr_t mem;
 
 	vga_init();
 	tty_init();

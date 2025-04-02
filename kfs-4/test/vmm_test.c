@@ -6,10 +6,10 @@
 
 void test_virtual_address_allocator(struct k_vspace_allocator *kvs_alloc)
 {
-    uint32_t addrs[MAX_T_VMM_ARRAY];
+    uintptr_t addrs[MAX_T_VMM_ARRAY];
     struct k_vspace *cur;
-    uint32_t initial_addr;
-    uint32_t initial_size;
+    uintptr_t initial_addr;
+    size_t initial_size;
 
     cur = list_first_entry(&kvs_alloc->list_head, typeof(*cur), list_head);
     initial_addr = cur->addr;
@@ -18,7 +18,7 @@ void test_virtual_address_allocator(struct k_vspace_allocator *kvs_alloc)
     printk("VMM test case 1 (a single 4MB virtual block): ");
     {
 
-        addrs[0] = (uint32_t)vs_alloc(K_PAGE_SIZE);
+        addrs[0] = (uintptr_t)vs_alloc(K_PAGE_SIZE);
         if (!(addrs[0] >= initial_addr && addrs[0] < initial_addr + initial_size && addrs[0] % K_PAGE_SIZE == 0)) {
             printk(KERN_ERR "Failed\n");
             return;
@@ -48,7 +48,7 @@ void test_virtual_address_allocator(struct k_vspace_allocator *kvs_alloc)
     printk("VMM test case 2 (multiple 4MB virtual blocks): ");
     {
         for (size_t i = 0; i < initial_size / K_PAGE_SIZE; i++) {
-            addrs[i] = (uint32_t)vs_alloc(K_PAGE_SIZE);
+            addrs[i] = (uintptr_t)vs_alloc(K_PAGE_SIZE);
             
             if (!(addrs[i] >= initial_addr && addrs[i] < initial_addr + initial_size && addrs[i] % K_PAGE_SIZE == 0)) {
                 printk(KERN_ERR "Failed\n");
@@ -85,10 +85,10 @@ void test_virtual_address_allocator(struct k_vspace_allocator *kvs_alloc)
     printk("VMM test case 3 (multiple size virtual blocks): ");
     {
         size_t i;
-        uint32_t tmp;
+        uintptr_t tmp;
         size_t size = K_PAGE_SIZE;
 
-        for (i = 0; (addrs[i] = (uint32_t)vs_alloc(size)); i++) {
+        for (i = 0; (addrs[i] = (uintptr_t)vs_alloc(size)); i++) {
             for (size_t j = 0; j < size / K_PAGE_SIZE; j++) {
                 tmp = addrs[i] + (K_PAGE_SIZE * j);
                 if (!(tmp >= initial_addr && tmp < initial_addr + initial_size && tmp % K_PAGE_SIZE == 0)) {
@@ -125,7 +125,7 @@ void test_virtual_address_allocator(struct k_vspace_allocator *kvs_alloc)
             if (j % 2 == 1)
                 vs_free((void *)addrs[j]);
         }
-        addrs[0] = (uint32_t)vs_alloc(initial_size);
+        addrs[0] = (uintptr_t)vs_alloc(initial_size);
         if (!addrs[0]) {
             printk(KERN_ERR "Failed\n");
             return;

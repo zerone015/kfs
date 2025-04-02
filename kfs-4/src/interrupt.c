@@ -153,7 +153,7 @@ void gpf_handle(struct interrupt_frame iframe)
 
 void page_fault_handle(uint32_t error_code, struct interrupt_frame iframe) 
 {
-    uint32_t fault_addr;
+    uintptr_t fault_addr;
     uint32_t *pde;
 
     __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr));

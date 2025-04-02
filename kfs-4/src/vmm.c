@@ -50,13 +50,13 @@ static inline void __freenode_stack_init(struct k_vspace *kvs)
         __stack_push(&kvs_alloc.free_stack, &kvs[i]);
 }
 
-static inline void __vs_allocator_init(uint32_t mem)
+static inline void __vs_allocator_init(uintptr_t mem)
 {
     __kvs_init((struct k_vspace *)mem);
     __freenode_stack_init((struct k_vspace *)mem);
 }
 
-static inline void __vs_reserve(uint32_t v_addr, size_t size)
+static inline void __vs_reserve(uintptr_t v_addr, size_t size)
 {
     uint32_t *pde;
     size_t i;
@@ -67,7 +67,7 @@ static inline void __vs_reserve(uint32_t v_addr, size_t size)
     pde[i] = PG_RESERVED_ENTRY;
 }
 
-static inline size_t __vs_size_with_free(uint32_t addr)
+static inline size_t __vs_size_with_free(uintptr_t addr)
 {
     uint32_t *pde;
     size_t size;
@@ -84,7 +84,7 @@ static inline size_t __vs_size_with_free(uint32_t addr)
     return size;
 }
 
-static inline void __vs_add_and_merge(uint32_t addr, size_t size)
+static inline void __vs_add_and_merge(uintptr_t addr, size_t size)
 {
     struct k_vspace *cur;
     struct k_vspace *new;
@@ -94,8 +94,6 @@ static inline void __vs_add_and_merge(uint32_t addr, size_t size)
             break;
     }
     new = __stack_pop(&kvs_alloc.free_stack);
-    if (!new)
-        do_panic("Incorrect usage of vs_free");
     new->addr = addr;
     new->size = size;
     list_add_tail(&new->list_head, &cur->list_head);
@@ -119,21 +117,21 @@ void vs_free(void *addr)
 {
     size_t size;
 
-    size = __vs_size_with_free((uint32_t)addr);
-    __vs_add_and_merge((uint32_t)addr, size);
+    size = __vs_size_with_free((uintptr_t)addr);
+    __vs_add_and_merge((uintptr_t)addr, size);
 }
 
 void *vs_alloc(size_t size)
 {
     struct k_vspace *cur;
-    void *ret;
+    void *mem;
 
-    ret = NULL;
+    mem = NULL;
     list_for_each_entry(cur, &kvs_alloc.list_head, list_head) {
         if (size <= cur->size) {
             cur->size -= size;
-            ret = (void *)(cur->addr + cur->size);
-            __vs_reserve((uint32_t)ret, size);
+            mem = (void *)(cur->addr + cur->size);
+            __vs_reserve((uintptr_t)mem, size);
             if (!cur->size) {
                 list_del(&cur->list_head);
                 __stack_push(&kvs_alloc.free_stack, cur);
@@ -141,10 +139,10 @@ void *vs_alloc(size_t size)
             break;
         }
     }
-    return ret;
+    return mem;
 }
 
-uint32_t pages_initmap(uint32_t p_addr, size_t size, uint32_t flags)
+uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags)
 {
     uint32_t *pde;
 
@@ -160,9 +158,9 @@ uint32_t pages_initmap(uint32_t p_addr, size_t size, uint32_t flags)
     return addr_from_pde(pde);
 }
 
-uint32_t vmm_init(void)
+uintptr_t vmm_init(void)
 {
-    uint32_t mem;
+    uintptr_t mem;
 
     mem = alloc_pages(K_PAGE_SIZE);
     if (!mem)

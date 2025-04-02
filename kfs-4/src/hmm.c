@@ -80,10 +80,10 @@ static inline void __heap_init(struct malloc_chunk *free_chunk, size_t size)
 
 static inline int __morecore(void)
 {
-    uint32_t mem;
+    uintptr_t mem;
     size_t freechunk_size;
 
-    mem = (uint32_t)vs_alloc(K_PAGE_SIZE);
+    mem = (uintptr_t)vs_alloc(K_PAGE_SIZE);
     if (!mem)
         return MORECORE_FAILURE;
     freechunk_size = K_PAGE_SIZE - 2*MIN_SIZE;
@@ -91,7 +91,7 @@ static inline int __morecore(void)
     return MORECORE_SUCCESS;
 }
 
-void hmm_init(uint32_t mem)
+void hmm_init(uintptr_t mem)
 {
     size_t freechunk_size;
 

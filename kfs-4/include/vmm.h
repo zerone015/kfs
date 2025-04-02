@@ -9,14 +9,14 @@
 #define KVS_MAX_NODE		(K_VSPACE_SIZE / K_PAGE_SIZE / 2)
 #define KVS_MAX_SIZE		(KVS_MAX_NODE * sizeof(struct k_vspace))
 
-extern uint32_t vmm_init(void);
-extern uint32_t pages_initmap(uint32_t p_addr, size_t size, uint32_t flags);
+extern uintptr_t vmm_init(void);
+extern uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
 extern void *vs_alloc(size_t size);
 extern void vs_free(void *addr);
 
 struct k_vspace {
-	uint32_t 			addr;
-	uint32_t			size;
+	uintptr_t 			addr;
+	size_t				size;
 	struct list_head	list_head;
 };
 
