@@ -26,6 +26,11 @@ static inline void __hex_dump(struct interrupt_frame *iframe)
     printk("\n\n");
 }
 
+static inline void __panic_msg_print(const char *msg)
+{
+    printk("Kernel panic: %s\n", msg);
+}
+
 static inline void __registers_clear(void)
 {
     __asm__ volatile (
@@ -54,7 +59,7 @@ void panic(const char *msg, struct interrupt_frame *iframe)
 {
     tty_clear();
     __hex_dump(iframe);
-    printk("Kernel panic: %s\n", msg);
+    __panic_msg_print(msg);
     vga_disable_cursor();
     __registers_clear();
     __system_halt();
