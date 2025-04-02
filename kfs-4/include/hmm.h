@@ -41,5 +41,6 @@ struct malloc_chunk {
 extern void hmm_init(uintptr_t mem);
 extern void *kmalloc(size_t size);
 extern void kfree(void *mem);
+extern size_t ksize(void *mem);
 
 #endif

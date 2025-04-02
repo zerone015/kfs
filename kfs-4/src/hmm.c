@@ -100,6 +100,11 @@ void hmm_init(uintptr_t mem)
     __heap_init((struct malloc_chunk *)mem, freechunk_size | PREV_INUSE);
 }
 
+size_t ksize(void *mem)
+{
+    return __chunk_size(__mem2chunk(mem)) - SIZE_SZ;
+}
+
 void *kmalloc(size_t size)
 {
     struct malloc_chunk *chunk;
