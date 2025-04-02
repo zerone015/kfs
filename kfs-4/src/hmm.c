@@ -115,3 +115,22 @@ void *kmalloc(size_t size)
     __chunk_split(chunk, size);
     return __chunk2mem(chunk);
 }
+
+void kfree(void *mem)
+{
+    struct malloc_chunk *chunk;
+
+    chunk = __mem2chunk(mem);
+    if (!__next_is_inuse(chunk)) {
+        list_del(&__next_chunk(chunk)->list_head);
+        chunk->size += __next_chunk(chunk)->size;
+    }
+    if (!__prev_is_inuse(chunk)) {
+        list_del(&__prev_chunk(chunk)->list_head);
+        __prev_chunk(chunk)->size += __chunk_size(chunk);
+        chunk = __prev_chunk(chunk);
+    }
+    __clear_inuse(chunk);
+    __next_chunk(chunk)->prev_size = __chunk_size(chunk);
+    list_add(&chunk->list_head, free_list + __freelist_idx(chunk->size));
+}

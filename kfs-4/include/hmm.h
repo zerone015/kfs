@@ -25,6 +25,10 @@ struct malloc_chunk {
 
 #define __chunk_size(p)     ((p)->size & ~PREV_INUSE)
 #define __next_chunk(p)     ((struct malloc_chunk *)(((uint8_t *)(p)) + __chunk_size(p)))
+#define __prev_chunk(p)     ((struct malloc_chunk *)(((uint8_t *)(p)) - ((p)->prev_size)))
+#define __is_inuse(p)       ((__next_chunk(p))->size & PREV_INUSE)
+#define __prev_is_inuse(p)  ((p)->size & PREV_INUSE)
+#define __next_is_inuse(p)  ((__is_inuse(__next_chunk(p))))
 #define __set_inuse(p)      ((__next_chunk(p))->size |= PREV_INUSE)
 #define __clear_inuse(p)    ((__next_chunk(p))->size &= ~PREV_INUSE)
 #define __request_size(sz)  \
@@ -36,5 +40,6 @@ struct malloc_chunk {
 
 extern void hmm_init(uintptr_t mem);
 extern void *kmalloc(size_t size);
+extern void kfree(void *mem);
 
 #endif
