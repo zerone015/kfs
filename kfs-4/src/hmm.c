@@ -48,20 +48,15 @@ static inline struct malloc_chunk *__find_chunk(size_t size)
     return chunk;
 }
 
-static inline void __chunk_split(struct malloc_chunk *chunk, size_t size)
+static inline void __chunk_split(struct malloc_chunk *chunk, size_t remainder_size)
 {
-    size_t remainder_size;
-    struct malloc_chunk *next_chunk, *remainder_chunk;
+    struct malloc_chunk *remainder_chunk;
 
-    remainder_size = __chunk_size(chunk) - size;
-    if (remainder_size >= MIN_SIZE) {
-        next_chunk = __next_chunk(chunk);
-        next_chunk->prev_size = remainder_size;
-        chunk->size -= remainder_size;
-        remainder_chunk = __next_chunk(chunk);
-        remainder_chunk->size = remainder_size | PREV_INUSE;
-        list_add(&remainder_chunk->list_head, free_list + __freelist_idx(remainder_size));
-    }
+    __next_chunk(chunk)->prev_size = remainder_size & ~PREV_INUSE;
+    chunk->size -= remainder_size & ~PREV_INUSE;
+    remainder_chunk = __next_chunk(chunk);
+    remainder_chunk->size = remainder_size | PREV_INUSE;
+    list_add(&remainder_chunk->list_head, free_list + __freelist_idx(remainder_size));
 }
 
 static inline void __heap_init(struct malloc_chunk *free_chunk, size_t size)
@@ -108,6 +103,7 @@ size_t ksize(void *mem)
 void *kmalloc(size_t size)
 {
     struct malloc_chunk *chunk;
+    size_t remainder_size;
 
     size = __request_size(size);
     chunk = __find_chunk(size);
@@ -117,7 +113,11 @@ void *kmalloc(size_t size)
         chunk = list_first_entry(free_list + MORECORE_LINDEX, struct malloc_chunk, list_head);
         list_del(&chunk->list_head);
     }
-    __chunk_split(chunk, size);
+    remainder_size = chunk->size - size;
+    if (remainder_size >= MIN_SIZE)
+        __chunk_split(chunk, remainder_size);
+    else
+        __set_inuse(chunk);
     return __chunk2mem(chunk);
 }
 
