@@ -50,10 +50,10 @@ static inline void __freenode_stack_init(struct k_vspace *kvs)
         __stack_push(&kvs_alloc.free_stack, &kvs[i]);
 }
 
-static inline void __vs_allocator_init(uint32_t k_repository)
+static inline void __vs_allocator_init(uint32_t mem)
 {
-    __kvs_init((struct k_vspace *)k_repository);
-    __freenode_stack_init((struct k_vspace *)k_repository);
+    __kvs_init((struct k_vspace *)mem);
+    __freenode_stack_init((struct k_vspace *)mem);
 }
 
 static inline void __vs_reserve(uint32_t v_addr, size_t size)
@@ -162,13 +162,12 @@ uint32_t pages_initmap(uint32_t p_addr, size_t size, uint32_t flags)
 
 uint32_t vmm_init(void)
 {
-    uint32_t page;
-    uint32_t k_repository;
+    uint32_t mem;
 
-    page = alloc_pages(K_PAGE_SIZE);
-    if (!page)
+    mem = alloc_pages(K_PAGE_SIZE);
+    if (!mem)
         do_panic("Not enough memory to initialize the virtual memory manager");
-    k_repository = pages_initmap(page, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR | PG_PRESENT);
-    __vs_allocator_init(k_repository);
-    return k_repository + KVS_MAX_SIZE + sizeof(struct k_vspace);
+    mem = pages_initmap(mem, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR | PG_PRESENT);
+    __vs_allocator_init(mem);
+    return mem + KVS_MAX_SIZE + sizeof(struct k_vspace);
 }

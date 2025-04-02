@@ -6,11 +6,14 @@
 #include "gdt.h"
 #include "pmm.h"
 #include "vmm.h"
+#include "hmm.h"
 #include "panic.h"
 #include "utils.h"
 
 void kmain(multiboot_info_t* mbd, uint32_t magic)
 {
+	uint32_t mem;
+
 	vga_init();
 	tty_init();
 	gdt_init();
@@ -21,5 +24,6 @@ void kmain(multiboot_info_t* mbd, uint32_t magic)
 	if (!check_flag(mbd->flags, 6))
 		do_panic("invalid memory map given by GRUB bootloader");
 	pmm_init(mbd);
-	vmm_init();
+	mem = vmm_init();
+	hmm_init(mem);
 }

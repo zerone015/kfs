@@ -6,6 +6,7 @@
 #define PAGE_SIZE			(1024U * 4U)
 #define K_PAGE_SIZE         (1024U * 1024U * 4U)
 #define PAGE_SHIFT			__builtin_ctz(PAGE_SIZE)
+#define K_PAGE_SHIFT        __builtin_ctz(K_PAGE_SIZE)
 #define MAX_RAM_SIZE		0x100000000U
 #define K_PDE_START         0xFFFFFC00
 #define K_PDE_END           0xFFFFFFFF

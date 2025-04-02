@@ -60,9 +60,8 @@ extern kmain
     mov cr3, ecx
 
     mov esp, stack_top
-    sub esp, 16
-    mov [esp], ebx
-    mov [esp + 4], eax
+    push eax
+    push ebx
     
     call kmain
     sti
