@@ -8,7 +8,6 @@
 #include "vmm.h"
 #include "hmm.h"
 #include "panic.h"
-#include "utils.h"
 
 void kmain(multiboot_info_t* mbd, uint32_t magic)
 {

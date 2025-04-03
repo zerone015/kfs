@@ -7,25 +7,26 @@
 #include <stdbool.h>
 
 #define KVS_MAX_NODE		(K_VSPACE_SIZE / K_PAGE_SIZE / 2)
-#define KVS_MAX_SIZE		(KVS_MAX_NODE * sizeof(struct k_vspace))
+#define KVS_MAX_SIZE		(KVS_MAX_NODE * sizeof(struct k_vblock))
 
 extern uintptr_t vmm_init(void);
 extern uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
-extern void *vs_alloc(size_t size);
-extern void vs_free(void *addr);
+extern size_t vb_size(void *addr);
+extern void *vb_alloc(size_t size);
+extern void vb_free(void *addr);
 
-struct k_vspace {
+struct k_vblock {
 	uintptr_t 			addr;
 	size_t				size;
 	struct list_head	list_head;
 };
 
 struct free_stack {
-	struct k_vspace *free_nodes[KVS_MAX_NODE + 1];
+	struct k_vblock *free_nodes[KVS_MAX_NODE + 1];
 	int top_index;
 };
 
-struct k_vspace_allocator {
+struct k_vblock_allocator {
 	struct list_head list_head;			
 	struct free_stack free_stack;			
 };

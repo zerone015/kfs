@@ -19,13 +19,13 @@ struct malloc_chunk {
 #define MIN_CHUNK_SIZE      sizeof(struct malloc_chunk)
 #define MIN_SIZE            ((MIN_CHUNK_SIZE + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
 #define PREV_INUSE          0x1
-#define MORECORE_FAILURE    -1
-#define MORECORE_SUCCESS    0
-#define MORECORE_LINDEX     (K_PAGE_SHIFT - 1)
+#define IS_HEAD             0x2
+#define CHUNK_FLAGS         (IS_HEAD | PREV_INUSE)
 
-#define __chunk_size(p)     ((p)->size & ~PREV_INUSE)
+#define __chunk_size(p)     ((p)->size & ~CHUNK_FLAGS)
 #define __next_chunk(p)     ((struct malloc_chunk *)(((uint8_t *)(p)) + __chunk_size(p)))
 #define __prev_chunk(p)     ((struct malloc_chunk *)(((uint8_t *)(p)) - ((p)->prev_size)))
+#define __chunk_is_head(p)  ((p)->size & IS_HEAD)
 #define __is_inuse(p)       ((__next_chunk(p))->size & PREV_INUSE)
 #define __prev_is_inuse(p)  ((p)->size & PREV_INUSE)
 #define __next_is_inuse(p)  ((__is_inuse(__next_chunk(p))))
@@ -35,6 +35,7 @@ struct malloc_chunk {
     (((sz) + SIZE_SZ + MALLOC_ALIGN_MASK < MIN_SIZE) ?               \
     MIN_SIZE :                                                      \
     ((sz) + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
+#define __check_vb(p)       (__chunk_is_head(p) && (__chunk_size(p) + 2*MIN_SIZE) == vb_size(p))
 #define __chunk2mem(p)      ((void *)((uint8_t *)(p) + 2*SIZE_SZ))
 #define __mem2chunk(mem)    ((struct malloc_chunk *)((uint8_t *)(mem) - 2*SIZE_SZ))
 
