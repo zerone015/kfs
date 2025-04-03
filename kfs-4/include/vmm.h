@@ -6,8 +6,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define KVS_MAX_NODE		(K_VSPACE_SIZE / K_PAGE_SIZE / 2)
-#define KVS_MAX_SIZE		(KVS_MAX_NODE * sizeof(struct k_vblock))
+#define KVB_MAX_NODE		(K_VSPACE_SIZE / K_PAGE_SIZE / 2)
+#define KVB_MAX_SIZE		(KVB_MAX_NODE * sizeof(struct k_vblock))
 
 extern uintptr_t vmm_init(void);
 extern uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
@@ -22,7 +22,7 @@ struct k_vblock {
 };
 
 struct free_stack {
-	struct k_vblock *free_nodes[KVS_MAX_NODE + 1];
+	struct k_vblock *free_nodes[KVB_MAX_NODE + 1];
 	int top_index;
 };
 

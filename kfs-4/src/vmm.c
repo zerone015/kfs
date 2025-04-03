@@ -46,7 +46,7 @@ static inline void __kvb_init(struct k_vblock *kvs)
 static inline void __freenode_stack_init(struct k_vblock *kvs)
 {
     __stack_init(&kvb_alloc.free_stack);
-    for (size_t i = 1; i < KVS_MAX_NODE + 1; i++) 
+    for (size_t i = 1; i < KVB_MAX_NODE + 1; i++) 
         __stack_push(&kvb_alloc.free_stack, &kvs[i]);
 }
 
@@ -180,5 +180,5 @@ uintptr_t vmm_init(void)
         do_panic("Not enough memory to initialize the virtual memory manager");
     mem = pages_initmap(mem, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR | PG_PRESENT);
     __vb_allocator_init(mem);
-    return mem + KVS_MAX_SIZE + sizeof(struct k_vblock);
+    return mem + KVB_MAX_SIZE + sizeof(struct k_vblock);
 }
