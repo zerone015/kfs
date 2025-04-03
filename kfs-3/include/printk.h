@@ -7,7 +7,7 @@
 
 extern void printk(const char *__restrict, ...);
 
-#define HAS_LOG_LEVEL(format) \
+#define has_log_level(format) \
     ((format)[0] == '<' && (format)[1] >= '0' && (format)[1] <= '2' && (format)[2] == '>')
 
 #endif

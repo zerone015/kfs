@@ -16,9 +16,9 @@ SRC-DIR = ./src
 OBJ-DIR = ./build
 ASM-DIR = ./asm
 
-SRC = $(SRC-DIR)/kernel.c $(SRC-DIR)/tty.c $(SRC-DIR)/printk.c $(SRC-DIR)/utils.c $(SRC-DIR)/pic.c $(SRC-DIR)/idt.c $(SRC-DIR)/keyboard_handle.c $(SRC-DIR)/vga.c $(SRC-DIR)/gdt.c \
-	$(SRC-DIR)/pmm.c $(SRC-DIR)/vmm.c $(SRC-DIR)/panic.c $(SRC-DIR)/page_fault_handle.c
-ASM = $(ASM-DIR)/boot.s $(ASM-DIR)/outb.s $(ASM-DIR)/inb.s $(ASM-DIR)/idt_load.s $(ASM-DIR)/keyboard_handler.s $(ASM-DIR)/gdt_load.s $(ASM-DIR)/page_fault_handler.s
+SRC = $(SRC-DIR)/kernel.c $(SRC-DIR)/tty.c $(SRC-DIR)/printk.c $(SRC-DIR)/utils.c $(SRC-DIR)/pic.c $(SRC-DIR)/idt.c $(SRC-DIR)/vga.c $(SRC-DIR)/gdt.c \
+	$(SRC-DIR)/pmm.c $(SRC-DIR)/vmm.c $(SRC-DIR)/panic.c $(SRC-DIR)/interrupt.c $(SRC-DIR)/hmm.c
+ASM = $(ASM-DIR)/boot.s $(ASM-DIR)/init.s $(ASM-DIR)/interrupt_handler.s $(ASM-DIR)/do_panic.s
 OBJ = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.o) $(ASM:$(ASM-DIR)/%.s=$(OBJ-DIR)/%.o)
 DEP = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.d)
 -include $(DEP)

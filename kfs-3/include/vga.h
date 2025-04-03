@@ -15,6 +15,7 @@
 #define CURSOR_LOW_LOCATION		0x0F
 #define CURSOR_START_IDX		0x0A
 #define CURSOR_END_IDX			0x0B
+#define CURSOR_DISABLE_BIT		0x20
 
 #define VGA_INPUT_STATUS_PORT	0x3DA
 #define VGA_ADDRESS_DATA_PORT	0x3C0
@@ -25,8 +26,8 @@
 #define VGA_ENABLE_BLINK		1
 #define VGA_DISABLE_BLINK		0
 
-#define VGA_ENTRY_COLOR(fg, bg)	((fg) | ((bg) << 4))
-#define VGA_ENTRY(c, color)		((c) | ((color) << 8))
+#define vga_entry_color(fg, bg)	((fg) | ((bg) << 4))
+#define vga_entry(c, color)		((c) | ((color) << 8))
 
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
@@ -50,6 +51,7 @@ enum vga_color {
 extern void vga_init(void);
 extern void vga_set_blink(int flag);
 extern void vga_enable_cursor(uint8_t cursor_start, uint8_t cursor_end);
+extern void vga_disable_cursor(void);
 extern void vga_update_cursor(size_t x, size_t y);
 
 #endif

@@ -1,6 +1,5 @@
-MBALIGN  equ  1 << 0            
 MEMINFO  equ  1 << 1            
-MBFLAGS  equ  MBALIGN | MEMINFO 
+MBFLAGS  equ  MEMINFO
 MAGIC    equ  0x1BADB002        
 CHECKSUM equ -(MAGIC + MBFLAGS) 
 
@@ -12,6 +11,7 @@ align 4
 
 section .bootstrap_stack nobits
 align 16
+global stack_top
 stack_bottom:
     resb 8192
 stack_top:
@@ -60,9 +60,8 @@ extern kmain
     mov cr3, ecx
 
     mov esp, stack_top
-    sub esp, 16
-    mov [esp], ebx
-    mov [esp + 4], eax
+    push eax
+    push ebx
     
     call kmain
     sti

@@ -39,7 +39,7 @@ static void print_free_count(struct buddy_allocator *bd_alloc)
  */
 void test_page_allocator(multiboot_memory_map_t *mmap, size_t mmap_count, struct buddy_allocator *bd_alloc)
 {
-    uint32_t addrs[MAX_T_PMM_ARRAY];
+    uintptr_t addrs[MAX_T_PMM_ARRAY];
 
     // print_free_count(bd_alloc);
     
@@ -232,7 +232,7 @@ void test_page_allocator(multiboot_memory_map_t *mmap, size_t mmap_count, struct
                 flag = 0;
                 for (size_t j = 0; j < mmap_count; j++) {
                     if (mmap[j].type == MULTIBOOT_MEMORY_AVAILABLE && mmap[j].addr < MAX_RAM_SIZE) {
-                        if ((uint32_t)addrs[i] >= mmap[j].addr && (uint32_t)addrs[i] < mmap[j].addr + mmap[j].len)
+                        if ((uintptr_t)addrs[i] >= mmap[j].addr && (uintptr_t)addrs[i] < mmap[j].addr + mmap[j].len)
                             flag = 1;
                     }
                 }

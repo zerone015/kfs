@@ -16,6 +16,7 @@ extern void *memcpy(void *restrict dstptr, const void *restrict srcptr, size_t s
 #define align_4byte(val)                (((val) + 0x3) & ~0x3)
 #define align_page(val)                 (((val) + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1))
 #define align_kpage(val)                (((val) + (K_PAGE_SIZE - 1)) & ~(K_PAGE_SIZE - 1))
+#define is_align_kpage(val)				(!((val) & (K_PAGE_SIZE - 1)))
 #define container_of(ptr, type, member) ({				\
 	    uint8_t *__mptr = (uint8_t *)(ptr);				\
 	    ((type *)(__mptr - offsetof(type, member))); })

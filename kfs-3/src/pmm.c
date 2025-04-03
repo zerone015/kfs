@@ -4,7 +4,7 @@
 #include "paging.h"
 #include "vmm.h"
 
-struct buddy_allocator bd_alloc;
+static struct buddy_allocator bd_alloc;
 
 static inline void __mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
@@ -65,7 +65,7 @@ static inline void __memory_align(multiboot_memory_map_t* mmap, size_t mmap_coun
 	}
 }
 
-static inline void __bitmap_init(uint32_t v_addr, uint64_t ram_size)
+static inline void __bd_allocator_init(uintptr_t v_addr, uint64_t ram_size)
 {
     size_t first_size;
 
@@ -81,12 +81,12 @@ static inline void __bitmap_init(uint32_t v_addr, uint64_t ram_size)
 
 static inline void __pages_register(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
-    uint32_t addr;
+    uintptr_t addr;
     size_t page_count;
 
     for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            addr = (uint32_t)mmap[i].addr;
+            addr = (uintptr_t)mmap[i].addr;
             page_count = mmap[i].len / PAGE_SIZE;
             while (page_count--) {
                 free_pages(addr, PAGE_SIZE);
@@ -126,16 +126,16 @@ static inline multiboot_memory_map_t *__bitmap_memory(multiboot_memory_map_t* mm
     return NULL;
 }
 
-static inline uint32_t __bitmap_memory_reserve(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline uintptr_t __bd_allocator_memory_reserve(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     multiboot_memory_map_t *useful_mmap;
     size_t bitmap_size;
-    uint32_t v_addr;
+    uintptr_t v_addr;
 
     bitmap_size = __bitmap_size(ram_size);
     useful_mmap = __bitmap_memory(mmap, mmap_count, bitmap_size);
     if (!useful_mmap)
-        panic("Not enough memory for pmm bitmap allocation");
+        do_panic("Not enough memory for pmm bitmap allocation");
     v_addr = K_VSPACE_START | useful_mmap->addr;
     memset((void *)v_addr, 0, bitmap_size);
     if (useful_mmap->len == bitmap_size) {
@@ -149,16 +149,16 @@ static inline uint32_t __bitmap_memory_reserve(uint64_t ram_size, multiboot_memo
 
 static inline void __page_allocator_init(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
 {
-    uint32_t v_addr;
+    uintptr_t v_addr;
 
-    v_addr = __bitmap_memory_reserve(ram_size, mmap, mmap_count);
-    __bitmap_init(v_addr, ram_size);
+    v_addr = __bd_allocator_memory_reserve(ram_size, mmap, mmap_count);
+    __bd_allocator_init(v_addr, ram_size);
     __pages_register(mmap, mmap_count);
 }
 
-static inline uint32_t __mmap_pages_map(uint32_t mmap_addr, size_t mmap_size)
+static inline uintptr_t __mmap_pages_map(uintptr_t mmap_addr, size_t mmap_size)
 {
-    uint32_t v_addr;
+    uintptr_t v_addr;
 
     mmap_size += K_PAGE_SIZE;
     v_addr = pages_initmap(mmap_addr, mmap_size, PG_PS | PG_RDWR | PG_PRESENT);
@@ -185,27 +185,25 @@ static inline void __mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_
 
 static inline void __mbd_mmap_pages_unmap(multiboot_info_t* mbd)
 {
-    uint32_t *kpage_dir;
+    uint32_t *pde;
 
-    kpage_dir = (uint32_t *)dir_from_addr(mbd->mmap_addr);
+    pde = (uint32_t *)pde_from_addr(mbd->mmap_addr);
     for (size_t i = 0; i < ((align_kpage(mbd->mmap_length) + K_PAGE_SIZE) / K_PAGE_SIZE); i++) {
-        kpage_dir[i] = 0;
+        pde[i] = 0;
         tlb_flush(mbd->mmap_addr);
         mbd->mmap_addr += K_PAGE_SIZE;
     }
-    kpage_dir = (uint32_t *)dir_from_addr(mbd);
-    *kpage_dir = 0;
-    tlb_flush((uint32_t)mbd);
+    pde = (uint32_t *)pde_from_addr(mbd);
+    *pde = 0;
+    tlb_flush((uintptr_t)mbd);
 }
 
-uint32_t alloc_pages(size_t size)
+uintptr_t alloc_pages(size_t size)
 {
 	uint32_t *bitmap;
 	size_t order;
 	size_t bit_offset;
 
-	if (size > MAX_BLOCK_SIZE)
-		return 0;
 	order = 0;
 	while (size > __block_size(order))
 		order++;
@@ -219,40 +217,38 @@ uint32_t alloc_pages(size_t size)
 			bd_alloc.orders[i].free_count--;
 			while (i > order) {
 				i--;
-				bit_offset <<= 1;
+				bit_offset *= 2;
 				bitmap = bd_alloc.orders[i].bitmap;
-				__bit_set(&bitmap[bit_offset >> 5], (bit_offset ^ 1) & 31);
+				__bit_set(&bitmap[bit_offset / 32], (bit_offset ^ 1) % 32);
 				bd_alloc.orders[i].free_count++;
 			}
-			return bit_offset << (PAGE_SHIFT + order);
+			return bit_offset * __block_size(order);
 		}
 	}
 	return 0;
 }
 
-void free_pages(uint32_t addr, size_t size)
+void free_pages(uintptr_t addr, size_t size)
 {
 	uint32_t *bitmap;
 	size_t order;
 	size_t bit_offset;
 
-	if (!addr || size > MAX_BLOCK_SIZE)
-		return;
 	order = 0;
 	while (size > __block_size(order))
 		order++;
-	bit_offset = addr >> (PAGE_SHIFT + order);
+	bit_offset = addr / __block_size(order);
 	bitmap = bd_alloc.orders[order].bitmap;
 	while (order < MAX_ORDER - 1) {
-		if (!__bit_check(&bitmap[bit_offset >> 5], (bit_offset ^ 1) & 31))
+		if (!__bit_check(&bitmap[bit_offset / 32], (bit_offset ^ 1) % 32))
 			break;
-		__bit_unset(&bitmap[bit_offset >> 5], (bit_offset ^ 1) & 31);
+		__bit_unset(&bitmap[bit_offset / 32], (bit_offset ^ 1) % 32);
 		bd_alloc.orders[order].free_count--;
-		bit_offset >>= 1;
+		bit_offset /= 2;
 		order++;
 		bitmap = bd_alloc.orders[order].bitmap;
 	}
-	__bit_set(&bitmap[bit_offset >> 5], bit_offset & 31);
+	__bit_set(&bitmap[bit_offset / 32], bit_offset % 32);
 	bd_alloc.orders[order].free_count++;
 }
 
@@ -265,7 +261,7 @@ void pmm_init(multiboot_info_t* mbd)
     mbd->mmap_addr = __mmap_pages_map(mbd->mmap_addr, mbd->mmap_length);
     mmap_count = __mmap_count(mbd->mmap_length);
     if (mmap_count > MAX_MMAP)
-        panic("The GRUB memory map is too large");
+        do_panic("The GRUB memory map is too large");
     __mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
     __mbd_mmap_pages_unmap(mbd);
     __mmap_sanitize(mmap, mmap_count);

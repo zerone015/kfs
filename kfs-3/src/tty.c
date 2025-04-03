@@ -8,25 +8,22 @@
 #include "printk.h"
 
 static struct tty_context	tty[TTY_MAX];
-static size_t			cur_tty;
-static uint16_t			*vga_buf;
+static size_t				cur_tty;
+static uint16_t				*vga_buf;
 
 void tty_init(void)
 {
 	for (size_t i = 0; i < TTY_MAX; i++) {
-		tty[i].row = 0;
-		tty[i].column = 0;
-		tty[i].input_length = 0;
-		tty[i].color = VGA_ENTRY_COLOR(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
+		tty[i].color = vga_entry_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
 		vga_buf = tty[i].buf;
 		cur_tty = i;
 		printk(TTY_HELLO);
-		tty[i].color = VGA_ENTRY_COLOR(VGA_COLOR_RED, VGA_COLOR_BLACK);
+		tty[i].color = vga_entry_color(VGA_COLOR_RED, VGA_COLOR_BLACK);
 		printk("* Connected to tty%c *\n\n", i + '1');
-		tty[i].color = VGA_ENTRY_COLOR(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+		tty[i].color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 		printk(TTY_PROMPT);
 		for (size_t j = VGA_WIDTH * tty[i].row + tty[i].column; j < VGA_SIZE; j++)
-			vga_buf[j] = VGA_ENTRY(' ', tty[i].color);
+			vga_buf[j] = vga_entry(' ', tty[i].color);
 	}
 	cur_tty = 0;
 	vga_buf = (uint16_t *)VGA_MEMORY;
@@ -51,7 +48,7 @@ void tty_change(size_t next_tty)
 	for (size_t i = 0; i < next_tty_size; i++)
 		vga_buf[i] = tty[next_tty].buf[i];
 	while (next_tty_size < cur_tty_size) {	
-		vga_buf[next_tty_size] = VGA_ENTRY(' ', tty[next_tty].color);
+		vga_buf[next_tty_size] = vga_entry(' ', tty[next_tty].color);
 		next_tty_size++;
 	}
 	cur_tty = next_tty;
@@ -63,7 +60,7 @@ void tty_putentryat(char c, uint8_t color, size_t x, size_t y)
 	size_t idx;
 
 	idx = y * VGA_WIDTH + x;
-	vga_buf[idx] = VGA_ENTRY(c, color);
+	vga_buf[idx] = vga_entry(c, color);
 }
 
 void tty_delete_last_line(void)
@@ -72,7 +69,7 @@ void tty_delete_last_line(void)
 
 	idx = VGA_WIDTH * (tty[cur_tty].row - 1);
 	for (size_t x = 0; x < VGA_WIDTH; x++)
-		vga_buf[idx + x] = VGA_ENTRY(' ', tty[cur_tty].color);
+		vga_buf[idx + x] = vga_entry(' ', tty[cur_tty].color);
 }
 
 void tty_scroll(void)
@@ -88,13 +85,13 @@ void tty_scroll(void)
 	tty[cur_tty].row--;
 }
 
-void tty_insert_input_char(char c)
+void tty_add_input(char c)
 {
 	tty_putchar(c);
 	tty[cur_tty].input_length++;
 }
 
-void tty_delete_input_char(void)
+void tty_delete_input(void)
 {
 	if (tty[cur_tty].input_length > 0) {
 		tty[cur_tty].input_length--;
@@ -104,7 +101,7 @@ void tty_delete_input_char(void)
 	}
 }
 
-void tty_flush_input(void)
+void tty_enter_input(void)
 {
 	uint16_t *input_head;
 	size_t input_head_idx;
@@ -141,4 +138,11 @@ void tty_write(const char *data, size_t size)
 {
 	for (size_t i = 0; i < size; i++)
 		tty_putchar(data[i]);
+}
+
+void tty_clear(void)
+{
+	for (size_t i = 0; i < VGA_WIDTH * tty[cur_tty].row + tty[cur_tty].column; i++)
+		vga_buf[i] = vga_entry(' ', tty[cur_tty].color);
+	tty[cur_tty].input_length = tty[cur_tty].row = tty[cur_tty].column = 0;
 }
