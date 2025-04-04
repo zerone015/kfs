@@ -27,11 +27,6 @@ struct buddy_allocator {
 
 #define __block_size(order)					(PAGE_SIZE << (order))
 #define __bitmap_first_size(ram)    		(((((ram) + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8)
-#define __bit_distance(begin, end)			(((end) - (begin)) * 32)
-#define __bit_first_set_offset(begin, end)	((__bit_distance((begin), (end))) + __builtin_clz(*(end)))
-#define __bit_set(bitmap, offset) 			do { *(bitmap) |= (0x80000000U >> (offset)); } while (0)
-#define __bit_unset(bitmap, offset) 		do { *(bitmap) &= ~(0x80000000U >> (offset)); } while (0)
-#define __bit_check(bitmap, offset) 		((*(bitmap) & (0x80000000U >> (offset))) != 0)
 
 extern void pmm_init(multiboot_info_t* mbd);
 extern uintptr_t alloc_pages(size_t size);

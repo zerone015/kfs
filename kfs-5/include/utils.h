@@ -20,7 +20,8 @@ extern void *memcpy(void *restrict dstptr, const void *restrict srcptr, size_t s
 #define container_of(ptr, type, member) ({				\
 	    uint8_t *__mptr = (uint8_t *)(ptr);				\
 	    ((type *)(__mptr - offsetof(type, member))); })
-#define BIT_SET(bitmap, bit)     ((bitmap) |=  (1U << (bit)))
-#define BIT_CLEAR(bitmap, bit)   ((bitmap) &= ~(1U << (bit)))
+#define BIT_SET(bitmap, offset)     	((bitmap) |=  (1U << (offset)))
+#define BIT_CLEAR(bitmap, offset)   	((bitmap) &= ~(1U << (offset)))
+#define BIT_CHECK(bits, offset)			((bits) & (1U << (offset)))
 
 #endif

@@ -3,6 +3,7 @@
 #include "panic.h"
 #include "paging.h"
 #include "vmm.h"
+#include <stdbool.h>
 
 static struct buddy_allocator bd_alloc;
 
@@ -198,31 +199,71 @@ static inline void __mbd_mmap_pages_unmap(multiboot_info_t* mbd)
     tlb_flush((uintptr_t)mbd);
 }
 
+static inline bool __buddy_is_freeable(uint32_t *bitmap, size_t offset)
+{
+    return BIT_CHECK(bitmap[offset / 32], (offset ^ 1) % 32);
+}
+
+static inline void __buddy_bit_set(uint32_t *bitmap, size_t offset)
+{
+    BIT_SET(bitmap[offset / 32], (offset ^ 1) % 32);
+}
+
+static inline void __buddy_bit_clear(uint32_t *bitmap, size_t offset)
+{
+    BIT_CLEAR(bitmap[offset / 32], (offset ^ 1) % 32);
+}
+
+static inline void __bit_set(uint32_t *bitmap, size_t offset)
+{
+    BIT_SET(bitmap[offset / 32], offset % 32);
+}
+
+static inline void __bit_clear(uint32_t *bitmap, size_t offset)
+{
+    BIT_CLEAR(bitmap[offset / 32], offset % 32);
+}
+
+static inline uintptr_t __page_number(size_t order, size_t offset)
+{
+    return __block_size(order) * offset;   
+}
+
+static inline size_t __first_set_bit_offset(uint32_t *bitmap) 
+{
+    size_t i;
+    size_t bit_offset;
+
+    i = 0;
+    while (!bitmap[i])
+        i++;
+    bit_offset = __builtin_ctz(bitmap[i]);
+    return bit_offset + 32*i;
+}
+
 uintptr_t alloc_pages(size_t size)
 {
 	uint32_t *bitmap;
 	size_t order;
-	size_t bit_offset;
+	size_t offset;
 
 	order = 0;
 	while (size > __block_size(order))
 		order++;
 	for (size_t i = order; i < MAX_ORDER; i++) {
-		if (bd_alloc.orders[i].free_count) {
-			bitmap = bd_alloc.orders[i].bitmap;
-			while (!*bitmap)
-				bitmap++;
-			bit_offset = __bit_first_set_offset(bd_alloc.orders[i].bitmap, bitmap);
-			__bit_unset(bitmap, __builtin_clz(*bitmap));
+		if (bd_alloc.orders[i].free_count > 0) {
+            bitmap = bd_alloc.orders[i].bitmap;
+			offset = __first_set_bit_offset(bitmap);
+            __bit_clear(bitmap, offset);
 			bd_alloc.orders[i].free_count--;
 			while (i > order) {
 				i--;
-				bit_offset *= 2;
+				offset *= 2;
 				bitmap = bd_alloc.orders[i].bitmap;
-				__bit_set(&bitmap[bit_offset / 32], (bit_offset ^ 1) % 32);
+                __buddy_bit_set(bitmap, offset);
 				bd_alloc.orders[i].free_count++;
 			}
-			return bit_offset * __block_size(order);
+			return __page_number(order, offset);
 		}
 	}
 	return 0;
@@ -232,23 +273,23 @@ void free_pages(uintptr_t addr, size_t size)
 {
 	uint32_t *bitmap;
 	size_t order;
-	size_t bit_offset;
+	size_t offset;
 
 	order = 0;
 	while (size > __block_size(order))
 		order++;
-	bit_offset = addr / __block_size(order);
+	offset = addr / __block_size(order);
 	bitmap = bd_alloc.orders[order].bitmap;
 	while (order < MAX_ORDER - 1) {
-		if (!__bit_check(&bitmap[bit_offset / 32], (bit_offset ^ 1) % 32))
-			break;
-		__bit_unset(&bitmap[bit_offset / 32], (bit_offset ^ 1) % 32);
+        if (!__buddy_is_freeable(bitmap, offset))
+            break;
+        __buddy_bit_clear(bitmap, offset);
 		bd_alloc.orders[order].free_count--;
-		bit_offset /= 2;
+		offset /= 2;
 		order++;
 		bitmap = bd_alloc.orders[order].bitmap;
 	}
-	__bit_set(&bitmap[bit_offset / 32], bit_offset % 32);
+    __bit_set(bitmap, offset);
 	bd_alloc.orders[order].free_count++;
 }
 
