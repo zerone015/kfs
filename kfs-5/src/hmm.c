@@ -78,16 +78,6 @@ static inline struct malloc_chunk *__find_fit_chunk(size_t size)
             break;
         }
     }
-    if (!chunk) {
-        list_for_each_entry(chunk, free_list + idx, list_head) {
-            if (size <= chunk->size) {
-                list_del(&chunk->list_head);
-                break;
-            }
-        }
-        if (list_entry_is_head(chunk, free_list + idx, list_head))
-            chunk = __morecore(size);
-    }
     return chunk;
 }
 
@@ -115,8 +105,10 @@ void *kmalloc(size_t size)
 
     size = __request_size(size);
     chunk = __find_fit_chunk(size);
-    if (!chunk)
-        return NULL;
+    if (!chunk) {
+        if (!(chunk = __morecore(size)))
+            return NULL;
+    }
     remainder_size = chunk->size - size;
     if (remainder_size >= MIN_SIZE)
         __chunk_split(chunk, remainder_size);

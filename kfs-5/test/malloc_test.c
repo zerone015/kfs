@@ -17,7 +17,7 @@ void test_malloc(void)
 		return;
 	}
 	kfree(tmp);
-	for (size_t loop_count = 0; loop_count < 1; loop_count++) {
+	for (size_t loop_count = 0; loop_count < 10; loop_count++) {
 		addrs = kmalloc(MAX_T_MALLOC_ARRAY * sizeof(void *));
 		if (!addrs && ksize(addrs) != (MAX_T_MALLOC_ARRAY * sizeof(void *))) {
 			printk(KERN_ERR "Failed\n");
