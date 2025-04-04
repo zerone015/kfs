@@ -5,11 +5,7 @@
 
 #define PID_MAX     32768
 #define PIDMAP_MAX  (PID_MAX / 8 / 4)
-
-struct pid_allocator {
-    int useful_pid;
-    uint32_t pidmap[PIDMAP_MAX];
-};
+#define PID_NONE    -1
 
 enum process_state {
     PROCESS_NEW,
@@ -30,6 +26,7 @@ struct task_struct {
     // owner..
 };
 
+extern void pid_allocator_init(void);
 extern int alloc_pid(void);
 extern void free_pid(int pid);
 
