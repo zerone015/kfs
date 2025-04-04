@@ -141,7 +141,7 @@ void kfree(void *mem)
         __prev_chunk(chunk)->size += __chunk_size(chunk);
         chunk = __prev_chunk(chunk);
     }
-    if (__check_vb(chunk)) {
+    if (__is_freeable_vb(chunk)) {
         vb_free(chunk);
         return;
     } 

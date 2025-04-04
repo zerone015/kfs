@@ -2,6 +2,7 @@
 #define _INTERRUPT_H
 
 #include <stdint.h>
+#include "paging.h"
 
 struct general_purpose_registers {
     uint32_t edi;
@@ -34,9 +35,10 @@ struct interrupt_frame {
 #define F6_PRESS            0x40
 
 /* page fault handler */
-#define EC_PG_PRESENT               PG_PRESENT
-#define __is_reserve(ec, entry)     (!((ec) & EC_PG_PRESENT) && ((entry) & PG_RESERVED))
-#define __make_pde(entry)        (alloc_pages(K_PAGE_SIZE) + (((entry) & 0x17FF) | 0x1))
+#define PF_EC_PRESENT               PG_PRESENT
+#define PF_PDE_FLAGS_MASK           0x17FF
+#define __is_reserve(ec, entry)     (!((ec) & PF_EC_PRESENT) && ((entry) & PG_RESERVED))
+#define __make_pde(entry)           (alloc_pages(K_PAGE_SIZE) | (((entry) & PF_PDE_FLAGS_MASK) | PG_PRESENT))
 
 extern void panic(const char *msg, struct interrupt_frame *iframe);
 

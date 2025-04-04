@@ -224,7 +224,7 @@ static inline void __bit_clear(uint32_t *bitmap, size_t offset)
     BIT_CLEAR(bitmap[offset / 32], offset % 32);
 }
 
-static inline uintptr_t __page_number(size_t order, size_t offset)
+static inline uintptr_t __calc_pfn(size_t order, size_t offset)
 {
     return __block_size(order) * offset;   
 }
@@ -263,10 +263,10 @@ uintptr_t alloc_pages(size_t size)
                 __buddy_bit_set(bitmap, offset);
 				bd_alloc.orders[i].free_count++;
 			}
-			return __page_number(order, offset);
+			return __calc_pfn(order, offset);
 		}
 	}
-	return 0;
+	return PFN_NONE;
 }
 
 void free_pages(uintptr_t addr, size_t size)

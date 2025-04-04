@@ -15,6 +15,7 @@ extern char _kernel_end;
 #define K_PLOAD_START		((size_t)(&_kernel_start))
 #define K_PLOAD_END			((size_t)(&_kernel_end))
 #define KERNEL_SIZE			(K_PLOAD_END - K_PLOAD_START)
+#define PFN_NONE			1
 
 struct buddy_order {
 	uint32_t *bitmap;

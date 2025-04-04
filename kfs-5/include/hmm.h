@@ -35,7 +35,7 @@ struct malloc_chunk {
     (((sz) + SIZE_SZ + MALLOC_ALIGN_MASK < MIN_SIZE) ?               \
     MIN_SIZE :                                                      \
     ((sz) + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
-#define __check_vb(p)       (__chunk_is_head(p) && (__chunk_size(p) + 2*MIN_SIZE) == vb_size(p))
+#define __is_freeable_vb(p) (__chunk_is_head(p) && (__chunk_size(p) + 2*MIN_SIZE) == vb_size(p))
 #define __chunk2mem(p)      ((void *)((uint8_t *)(p) + 2*SIZE_SZ))
 #define __mem2chunk(mem)    ((struct malloc_chunk *)((uint8_t *)(mem) - 2*SIZE_SZ))
 

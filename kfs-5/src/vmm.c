@@ -176,7 +176,7 @@ uintptr_t vmm_init(void)
     uintptr_t mem;
 
     mem = alloc_pages(K_PAGE_SIZE);
-    if (!mem)
+    if (mem == PFN_NONE)
         do_panic("Not enough memory to initialize the virtual memory manager");
     mem = pages_initmap(mem, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR | PG_PRESENT);
     __vb_allocator_init(mem);
