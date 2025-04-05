@@ -17,7 +17,7 @@ OBJ-DIR = ./build
 ASM-DIR = ./asm
 
 SRC = $(SRC-DIR)/kernel.c $(SRC-DIR)/tty.c $(SRC-DIR)/printk.c $(SRC-DIR)/utils.c $(SRC-DIR)/pic.c $(SRC-DIR)/idt.c $(SRC-DIR)/vga.c $(SRC-DIR)/gdt.c \
-	$(SRC-DIR)/pmm.c $(SRC-DIR)/vmm.c $(SRC-DIR)/panic.c $(SRC-DIR)/interrupt.c $(SRC-DIR)/hmm.c $(SRC-DIR)/sched.c
+	$(SRC-DIR)/pmm.c $(SRC-DIR)/vmm.c $(SRC-DIR)/panic.c $(SRC-DIR)/interrupt.c $(SRC-DIR)/hmm.c $(SRC-DIR)/sched.c $(SRC-DIR)/rbtree.c
 ASM = $(ASM-DIR)/boot.s $(ASM-DIR)/init.s $(ASM-DIR)/interrupt_handler.s $(ASM-DIR)/do_panic.s
 OBJ = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.o) $(ASM:$(ASM-DIR)/%.s=$(OBJ-DIR)/%.o)
 DEP = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.d)
