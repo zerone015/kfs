@@ -40,7 +40,7 @@ struct idt_entry {
     uint8_t zero;
     uint8_t type_attr;
     uint16_t offset_high;
-} __attribute__((packed));
+} __attribute__((packed, aligned(8)));
 
 struct idt_ptr {
     uint16_t limit;

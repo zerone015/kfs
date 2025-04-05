@@ -34,7 +34,7 @@
 
 #define GDT_FLAGS 0xC
 
-struct gdt_entry {
+struct gdt_entry  {
     uint16_t limit_low;
     uint16_t base_low;
     uint8_t base_mid;
@@ -42,7 +42,7 @@ struct gdt_entry {
     uint8_t limit_high :4;
     uint8_t flags :4;
     uint8_t base_high;
-} __attribute__((packed));
+} __attribute__((packed, aligned(8)));
 
 struct gdt_ptr {
     uint16_t limit;
