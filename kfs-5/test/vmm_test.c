@@ -11,8 +11,8 @@ void test_virtual_address_allocator(struct k_vblock_allocator *kvs_alloc)
     uintptr_t initial_addr;
     size_t initial_size;
 
-    cur = list_first_entry(&kvs_alloc->list_head, typeof(*cur), list_head);
-    initial_addr = cur->addr;
+    cur = list_first_entry(&kvs_alloc->vblocks, typeof(*cur), list_head);
+    initial_addr = cur->base;
     initial_size = cur->size;
 
     printk("VMM test case 1 (a single 4MB virtual block): ");
@@ -23,8 +23,8 @@ void test_virtual_address_allocator(struct k_vblock_allocator *kvs_alloc)
             printk(KERN_ERR "Failed\n");
             return;
         }
-        cur = list_first_entry(&kvs_alloc->list_head, typeof(*cur), list_head);
-        if (addrs[0] >= cur->addr && addrs[0] < cur->addr + cur->size) {
+        cur = list_first_entry(&kvs_alloc->vblocks, typeof(*cur), list_head);
+        if (addrs[0] >= cur->base && addrs[0] < cur->base + cur->size) {
             printk(KERN_ERR "Failed\n");
             return;
         }
@@ -37,8 +37,8 @@ void test_virtual_address_allocator(struct k_vblock_allocator *kvs_alloc)
         }
         
         vb_free((void *)addrs[0]);
-        cur = list_first_entry(&kvs_alloc->list_head, typeof(*cur), list_head);
-        if ((initial_addr != cur->addr || initial_size != cur->size) || list_count_nodes(&kvs_alloc->list_head) != 1) {
+        cur = list_first_entry(&kvs_alloc->vblocks, typeof(*cur), list_head);
+        if ((initial_addr != cur->base || initial_size != cur->size) || list_count_nodes(&kvs_alloc->vblocks) != 1) {
             printk(KERN_ERR "Failed\n");
             return;
         }
@@ -55,8 +55,8 @@ void test_virtual_address_allocator(struct k_vblock_allocator *kvs_alloc)
                 return;
             }
 
-            cur = list_first_entry(&kvs_alloc->list_head, typeof(*cur), list_head);
-            if (addrs[i] >= cur->addr && addrs[i] < cur->addr + cur->size) {
+            cur = list_first_entry(&kvs_alloc->vblocks, typeof(*cur), list_head);
+            if (addrs[i] >= cur->base && addrs[i] < cur->base + cur->size) {
                 printk(KERN_ERR "Failed\n");
                 return;
             }
@@ -75,8 +75,8 @@ void test_virtual_address_allocator(struct k_vblock_allocator *kvs_alloc)
 
         for (size_t i = 0; i < initial_size / K_PAGE_SIZE; i++)
             vb_free((void *)addrs[i]);
-        cur = list_first_entry(&kvs_alloc->list_head, typeof(*cur), list_head);
-        if ((initial_addr != cur->addr || initial_size != cur->size) || list_count_nodes(&kvs_alloc->list_head) != 1) {
+        cur = list_first_entry(&kvs_alloc->vblocks, typeof(*cur), list_head);
+        if ((initial_addr != cur->base || initial_size != cur->size) || list_count_nodes(&kvs_alloc->vblocks) != 1) {
             printk(KERN_ERR "Failed\n");
             return;
         }      
@@ -97,10 +97,10 @@ void test_virtual_address_allocator(struct k_vblock_allocator *kvs_alloc)
                 }
             }
 
-            cur = list_first_entry(&kvs_alloc->list_head, typeof(*cur), list_head);
+            cur = list_first_entry(&kvs_alloc->vblocks, typeof(*cur), list_head);
             for (size_t j = 0; j < size / K_PAGE_SIZE; j++) {
                 tmp = addrs[i] + (K_PAGE_SIZE * j);
-                if (tmp >= cur->addr && tmp < cur->addr + cur->size) {
+                if (tmp >= cur->base && tmp < cur->base + cur->size) {
                     printk(KERN_ERR "Failed\n");
                     return;
                 }
@@ -132,8 +132,8 @@ void test_virtual_address_allocator(struct k_vblock_allocator *kvs_alloc)
         }
         vb_free((void *)addrs[0]);
 
-        cur = list_first_entry(&kvs_alloc->list_head, typeof(*cur), list_head);
-        if ((initial_addr != cur->addr || initial_size != cur->size) || list_count_nodes(&kvs_alloc->list_head) != 1) {
+        cur = list_first_entry(&kvs_alloc->vblocks, typeof(*cur), list_head);
+        if ((initial_addr != cur->base || initial_size != cur->size) || list_count_nodes(&kvs_alloc->vblocks) != 1) {
             printk(KERN_ERR "Failed\n");
             return;
         }

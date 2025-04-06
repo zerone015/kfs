@@ -5,49 +5,49 @@
 
 static struct k_vblock_allocator kvb_alloc;
 
-static inline void __stack_init(struct free_stack *stack)
+static inline void __stack_init(struct ptr_stack *stack)
 {
-	stack->top_index = -1;
+	stack->top = -1;
 }
 
-static inline void __stack_push(struct free_stack *stack, struct k_vblock *free_node)
+static inline void __stack_push(struct ptr_stack *stack, struct k_vblock *node)
 {
-	stack->top_index++;
-	stack->free_nodes[stack->top_index] = free_node;
+	stack->top++;
+	stack->ptrs[stack->top] = node;
 }
 
-static inline bool __stack_is_empty(struct free_stack *stack)
+static inline bool __stack_is_empty(struct ptr_stack *stack)
 {
-	return stack->top_index == -1 ? true : false;
+	return stack->top == -1 ? true : false;
 }
 
-static inline struct k_vblock *__stack_pop(struct free_stack *stack)
+static inline struct k_vblock *__stack_pop(struct ptr_stack *stack)
 {
 	if (__stack_is_empty(stack))
 		return NULL;
-	return stack->free_nodes[stack->top_index--];
+	return stack->ptrs[stack->top--];
 }
 
-static inline void __kvb_init(struct k_vblock *kvs)
+static inline void __kvb_init(struct k_vblock *kvb)
 {
     uint32_t *pde;
 
     pde = (uint32_t *)K_PDE_START;
     while (*pde)
         pde++;
-    kvs->addr = addr_from_pde(pde);
+    kvb->base = addr_from_pde(pde);
     while (!*pde)
         pde++;
-    kvs->size = addr_from_pde(pde) - kvs->addr;
-    init_list_head(&kvb_alloc.list_head);
-    list_add(&kvs->list_head, &kvb_alloc.list_head);
+    kvb->size = addr_from_pde(pde) - kvb->base;
+    init_list_head(&kvb_alloc.vblocks);
+    list_add(&kvb->list_head, &kvb_alloc.vblocks);
 }
 
-static inline void __freenode_stack_init(struct k_vblock *kvs)
+static inline void __freenode_stack_init(struct k_vblock *kvb)
 {
-    __stack_init(&kvb_alloc.free_stack);
-    for (size_t i = 1; i < KVB_MAX_NODE + 1; i++) 
-        __stack_push(&kvb_alloc.free_stack, &kvs[i]);
+    __stack_init(&kvb_alloc.ptr_stack);
+    for (size_t i = 1; i < KVB_MAX; i++) 
+        __stack_push(&kvb_alloc.ptr_stack, &kvb[i]);
 }
 
 static inline void __vb_allocator_init(uintptr_t mem)
@@ -89,27 +89,27 @@ static inline void __vb_add_and_merge(uintptr_t addr, size_t size)
     struct k_vblock *cur;
     struct k_vblock *new;
     
-    list_for_each_entry(cur, &kvb_alloc.list_head, list_head) {
-        if (addr < cur->addr)
+    list_for_each_entry(cur, &kvb_alloc.vblocks, list_head) {
+        if (addr < cur->base)
             break;
     }
-    new = __stack_pop(&kvb_alloc.free_stack);
-    new->addr = addr;
+    new = __stack_pop(&kvb_alloc.ptr_stack);
+    new->base = addr;
     new->size = size;
     list_add_tail(&new->list_head, &cur->list_head);
 
     cur = list_prev_entry(new, list_head);
-    if (!list_entry_is_head(cur, &kvb_alloc.list_head, list_head) && cur->addr + cur->size == new->addr) {
-        new->addr = cur->addr;
+    if (!list_entry_is_head(cur, &kvb_alloc.vblocks, list_head) && cur->base + cur->size == new->base) {
+        new->base = cur->base;
         new->size += cur->size;
         list_del(&cur->list_head);
-        __stack_push(&kvb_alloc.free_stack, cur);
+        __stack_push(&kvb_alloc.ptr_stack, cur);
     }
     cur = list_next_entry(new, list_head);
-    if (!list_entry_is_head(cur, &kvb_alloc.list_head, list_head) && new->addr + new->size == cur->addr) {
+    if (!list_entry_is_head(cur, &kvb_alloc.vblocks, list_head) && new->base + new->size == cur->base) {
         new->size += cur->size;
         list_del(&cur->list_head);
-        __stack_push(&kvb_alloc.free_stack, cur);
+        __stack_push(&kvb_alloc.ptr_stack, cur);
     }
 }
 
@@ -140,14 +140,14 @@ void *vb_alloc(size_t size)
     void *mem;
 
     mem = NULL;
-    list_for_each_entry(cur, &kvb_alloc.list_head, list_head) {
+    list_for_each_entry(cur, &kvb_alloc.vblocks, list_head) {
         if (size <= cur->size) {
             cur->size -= size;
-            mem = (void *)(cur->addr + cur->size);
+            mem = (void *)(cur->base + cur->size);
             __vb_reserve((uintptr_t)mem, size);
             if (!cur->size) {
                 list_del(&cur->list_head);
-                __stack_push(&kvb_alloc.free_stack, cur);
+                __stack_push(&kvb_alloc.ptr_stack, cur);
             }
             break;
         }
@@ -180,5 +180,5 @@ uintptr_t vmm_init(void)
         do_panic("Not enough memory to initialize the virtual memory manager");
     mem = pages_initmap(mem, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR | PG_PRESENT);
     __vb_allocator_init(mem);
-    return mem + KVB_MAX_SIZE + sizeof(struct k_vblock);
+    return mem + KVB_MAX_SIZE;
 }
