@@ -5,12 +5,7 @@
 #include <stddef.h>
 #include "paging.h"
 
-extern unsigned int abs(int n);
-extern int number_to_string(char *buf, size_t n, size_t radix, const char *base);
-extern int nbrlen(size_t n, int radix);
-extern size_t strlen(const char *str);
-extern void *memset(void *p, int value, size_t size);
-extern void *memcpy(void *restrict dstptr, const void *restrict srcptr, size_t size);
+extern char stack_top;
 
 #define check_flag(flags,bit)           ((flags) & (1 << (bit)))
 #define align_4byte(val)                (((val) + 0x3) & ~0x3)
@@ -23,5 +18,15 @@ extern void *memcpy(void *restrict dstptr, const void *restrict srcptr, size_t s
 #define BIT_SET(bitmap, offset)     	((bitmap) |=  (1U << (offset)))
 #define BIT_CLEAR(bitmap, offset)   	((bitmap) &= ~(1U << (offset)))
 #define BIT_CHECK(bits, offset)			((bits) & (1U << (offset)))
+
+#define __STR(x) 						#x
+#define STR(x) 							__STR(x)
+
+extern unsigned int abs(int n);
+extern int number_to_string(char *buf, size_t n, size_t radix, const char *base);
+extern int nbrlen(size_t n, int radix);
+extern size_t strlen(const char *str);
+extern void *memset(void *p, int value, size_t size);
+extern void *memcpy(void *restrict dstptr, const void *restrict srcptr, size_t size);
 
 #endif

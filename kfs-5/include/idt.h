@@ -48,7 +48,5 @@ struct idt_ptr {
 } __attribute__((packed));
 
 extern void idt_init(void);
-extern void idt_load(uint32_t idt_addr);
-extern void idt_set_gate(int idx, uint32_t handler);
 
 #endif

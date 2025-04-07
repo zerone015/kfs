@@ -1,17 +1,10 @@
 #include "pic.h"
-#include "io.h"
 
 void pic_init(void)
 {
 	pic_remap(PIC1_OFFSET, PIC2_OFFSET);
 	irq_clear_mask(KEYBOARD_IRQ);
-}
-
-void pic_send_eoi(uint8_t irq)
-{
-	if (irq >= 8)
-		outb(PIC2_CMD_PORT, PIC_EOI);
-	outb(PIC1_CMD_PORT, PIC_EOI);
+	// irq_clear_mask(PIT_IRQ);
 }
 
 void pic_remap(int offset1, int offset2)

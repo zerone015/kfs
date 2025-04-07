@@ -50,10 +50,15 @@ static inline void __freenode_stack_init(struct k_vblock *kvb)
         __stack_push(&kvb_alloc.ptr_stack, &kvb[i]);
 }
 
-static inline void __vb_allocator_init(uintptr_t mem)
+static inline void __kvb_allocator_init(uintptr_t mem)
 {
     __kvb_init((struct k_vblock *)mem);
     __freenode_stack_init((struct k_vblock *)mem);
+}
+
+static inline void __vb_allocator_init(uintptr_t mem)
+{
+    __kvb_allocator_init(mem);
 }
 
 static inline void __vb_reserve(uintptr_t v_addr, size_t size)

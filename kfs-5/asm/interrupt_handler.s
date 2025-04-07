@@ -49,18 +49,22 @@ global pit_handler
 global keyboard_handler
 division_error_handler:
 	cld
+	push 0
 	pushad
 	call division_error_handle
 debug_handler:
 	cld
+	push 0
 	pushad
 	call debug_handle
 nmi_handler:
 	cld
+	push 0
 	pushad
 	call nmi_handle
 breakpoint_handler:
 	cld
+	push 0
 	pushad
 	call breakpoint_handle
 overflow_handler:
@@ -69,97 +73,91 @@ overflow_handler:
 	call bound_range_handle
 bound_range_handler:
 	cld
+	push 0
 	pushad
 	call bound_range_handle
 invalid_opcode_handler:
 	cld
+	push 0
 	pushad
 	call invalid_opcode_handle
 device_not_avail_handler:
 	cld
+	push 0
 	pushad
 	call device_not_avail_handle
 double_fault_handler:
 	cld
-	add esp, 4
 	pushad
 	call double_fault_handle
 coprocessor_handler:
 	cld
+	push 0
 	pushad
 	call coprocessor_handle
 invalid_tss_handler:
 	cld
-	add esp, 4
 	pushad
 	call invalid_tss_handle
 segment_not_present_handler:
 	cld
-	add esp, 4
 	pushad
 	call segment_not_present_handle
 stack_fault_handler:
 	cld
-	add esp, 4
 	pushad
 	call stack_fault_handle
 gpf_handler:
 	cld
-	add esp, 4
 	pushad
 	call gpf_handle
 page_fault_handler:
 	cld
-	xchg eax, [esp]
-	sub esp, 32
-	mov [esp + 28], ecx
-	mov [esp + 24], edx
-	mov [esp + 20], ebx
-	add esp, 36
-	mov [esp - 20], esp
-	sub esp, 36
-	mov [esp + 12], ebp
-	mov [esp + 8], esi
-	mov [esp + 4], edi
-	mov [esp], eax
+	pushad
 	call page_fault_handle
-	add esp, 4
 	popad
+	add esp, 4
 	iretd
 floating_point_handler:
 	cld
+	push 0
 	pushad
 	call floating_point_handle
 alignment_check_handler:
 	cld
-	add esp, 4
 	pushad
 	call alignment_check_handle
 machine_check_handler:
 	cld
+	push 0
 	pushad
 	call machine_check_handle
 simd_floating_point_handler:
 	cld
+	push 0
 	pushad
 	call simd_floating_point_handle
 virtualization_handler:
 	cld
+	push 0
 	pushad
 	call virtualization_handle
 control_protection_handler:
 	cld
-	add esp, 4
 	pushad
 	call control_protection_handle
 fpu_error_handler:
 	cld
+	push 0
 	pushad
 	call fpu_error_handle
 pit_handler:
+	cld
+	push 0
 	pushad
 	call pit_handle
 	popad
+	add esp, 4
 	iretd
 keyboard_handler:
 	cld

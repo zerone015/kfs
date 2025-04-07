@@ -79,9 +79,30 @@ static const char shift_key_map[128] =
     0,  /* All other keys are undefined */
 };
 
+static void __do_panic(const char *msg, struct interrupt_frame *iframe)
+{
+    struct panic_info panic_info;
+
+    panic_info.eax = iframe->eax;
+    panic_info.ebp = iframe->ebp;
+    panic_info.ebx = iframe->ebx;
+    panic_info.ecx = iframe->ecx;
+    panic_info.edi = iframe->edi;
+    panic_info.edx = iframe->edx;
+    panic_info.eflags = iframe->eflags;
+    panic_info.eip = iframe->eip;
+    panic_info.esi = iframe->esi;
+    if (__from_user(iframe->cs))
+        panic_info.esp = iframe->esp + 4;
+    else
+        panic_info.esp = iframe->_esp_dummy + (offsetof(struct interrupt_frame, eflags) \
+                     - offsetof(struct interrupt_frame, eax));
+    panic(msg, &panic_info);
+}
+
 void division_error_handle(struct interrupt_frame iframe)
 {
-    panic("division error exception", &iframe);
+    __do_panic("division error exception", &iframe);
 }
 
 void debug_handle(struct interrupt_frame iframe)
@@ -92,7 +113,7 @@ void debug_handle(struct interrupt_frame iframe)
 
 void nmi_handle(struct interrupt_frame iframe)
 {
-    panic("fatal hardware error", &iframe);
+    __do_panic("fatal hardware error", &iframe);
 }
 
 void breakpoint_handle(struct interrupt_frame iframe)
@@ -103,105 +124,106 @@ void breakpoint_handle(struct interrupt_frame iframe)
 
 void overflow_handle(struct interrupt_frame iframe)
 {
-    panic("overflow exception", &iframe);
+    __do_panic("overflow exception", &iframe);
 }
 
 void bound_range_handle(struct interrupt_frame iframe)
 {
-    panic("bound range exception", &iframe);
+    __do_panic("bound range exception", &iframe);
 }
 
 void invalid_opcode_handle(struct interrupt_frame iframe)
 {
-    panic("invalid opcode", &iframe);
+    __do_panic("invalid opcode", &iframe);
 }
 
 void device_not_avail_handle(struct interrupt_frame iframe)
 {
-    panic("device not available", &iframe);
+    __do_panic("device not available", &iframe);
 }
 
 void double_fault_handle(struct interrupt_frame iframe)
 {
-    panic("double fault", &iframe);
+    __do_panic("double fault", &iframe);
 }
 
 void coprocessor_handle(struct interrupt_frame iframe)
 {
-    panic("coprocessor segment overrun", &iframe);
+    __do_panic("coprocessor segment overrun", &iframe);
 }
 
 void invalid_tss_handle(struct interrupt_frame iframe)
 {
-    panic("invalid tss", &iframe);
+    __do_panic("invalid tss", &iframe);
 }
 
 void segment_not_present_handle(struct interrupt_frame iframe)
 {
-    panic("segment not present", &iframe);
+    __do_panic("segment not present", &iframe);
 }
 
 void stack_fault_handle(struct interrupt_frame iframe)
 {
-    panic("stack fault", &iframe);
+    __do_panic("stack fault", &iframe);
 }
 
 void gpf_handle(struct interrupt_frame iframe)
 {
-    panic("general protection fault", &iframe);
+    __do_panic("general protection fault", &iframe);
 }
 
-void page_fault_handle(uint32_t error_code, struct interrupt_frame iframe) 
+void page_fault_handle(struct interrupt_frame iframe) 
 {
     uintptr_t fault_addr;
     uint32_t *pde;
 
-    __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr));
+    asm volatile ("mov %%cr2, %0" : "=r" (fault_addr) :: "memory");
     pde = (uint32_t *)pde_from_addr(fault_addr);
-    if (!__is_reserve(error_code, *pde))
-        panic("page fault", &iframe);
+    if (!__is_reserve(iframe.error_code, *pde))
+        __do_panic("page fault", &iframe);
     *pde = __make_pde(*pde);
 }
 
 void floating_point_handle(struct interrupt_frame iframe)
 {
-    panic("floating point exception", &iframe);
+    __do_panic("floating point exception", &iframe);
 }
 
 void alignment_check_handle(struct interrupt_frame iframe)
 {
-    panic("alignment check exception", &iframe);
+    __do_panic("alignment check exception", &iframe);
 }
 
 void machine_check_handle(struct interrupt_frame iframe)
 {
-    panic("machine check exception", &iframe);
+    __do_panic("machine check exception", &iframe);
 }
 
 void simd_floating_point_handle(struct interrupt_frame iframe)
 {
-    panic("simd floating point exception", &iframe);
+    __do_panic("simd floating point exception", &iframe);
 }
 
 void virtualization_handle(struct interrupt_frame iframe)
 {
-    panic("virtualization exception", &iframe);
+    __do_panic("virtualization exception", &iframe);
 }
 
 void control_protection_handle(struct interrupt_frame iframe)
 {
-    panic("control protection exception", &iframe);
+    __do_panic("control protection exception", &iframe);
 }
 
 void fpu_error_handle(struct interrupt_frame iframe)
 {
-    panic("FPU error interrupt", &iframe);
+    __do_panic("FPU error interrupt", &iframe);
 }
 
 void pit_handle(struct interrupt_frame iframe)
 {
     (void)iframe;
     printk("pit handler\n");
+    pic_send_eoi(PIT_IRQ);
 }
 
 void keyboard_handle(void)

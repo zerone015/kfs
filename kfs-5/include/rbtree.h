@@ -10,7 +10,6 @@ struct rb_node {
 	struct rb_node *rb_right;
 } __attribute__((aligned(sizeof(int32_t))));
 
-
 struct rb_root {
 	struct rb_node *rb_node;
 };

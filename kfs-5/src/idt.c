@@ -4,6 +4,25 @@
 
 static struct idt_entry idt[IDT_SIZE];
 
+static inline void idt_load(struct idt_ptr *idt_ptr)
+{
+	asm volatile (
+        "lidt (%0)"
+        :
+        : "r"(idt_ptr)
+        : "memory"
+    );
+}
+
+static void idt_set_gate(int idx, uintptr_t handler)
+{
+	idt[idx].offset_low = handler & 0xFFFF;
+	idt[idx].selector = KERN_CODE_SEGMENT;
+	idt[idx].zero = 0;
+	idt[idx].type_attr = INT_GATE;
+	idt[idx].offset_high = handler >> 16;
+}
+
 void idt_init(void)
 {
 	struct idt_ptr idt_ptr;
@@ -34,14 +53,6 @@ void idt_init(void)
 	idt_set_gate(KEYBOARD_INT, (uintptr_t)keyboard_handler);
 	idt_ptr.limit = (sizeof(struct idt_entry) * IDT_SIZE) - 1;
 	idt_ptr.base = (uintptr_t)&idt;
-	idt_load((uintptr_t)&idt_ptr);
+	idt_load(&idt_ptr);
 }
 
-void idt_set_gate(int idx, uintptr_t handler)
-{
-	idt[idx].offset_low = handler & 0xFFFF;
-	idt[idx].selector = KERN_CODE_SEGMENT;
-	idt[idx].zero = 0;
-	idt[idx].type_attr = INT_GATE;
-	idt[idx].offset_high = handler >> 16;
-}

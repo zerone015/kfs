@@ -3,10 +3,9 @@ extern panic
 global do_panic
 do_panic:
     pushfd
-    push cs
-    push dword [esp + 8]
+    push dword [esp + 4]
     pushad
-    add dword [esp + 12], 8
+    add dword [esp + 12], 16
     push esp
-    push dword [esp + 52]
+    push dword [esp + 48]
     call panic

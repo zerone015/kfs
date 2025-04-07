@@ -2,11 +2,14 @@
 #define _PANIC_H
 
 #include <stdint.h>
-#include "interrupt.h"
+#include <stdbool.h>
 
-extern char stack_top;
+struct panic_info {
+    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
+    uint32_t eip, eflags;  
+};
 
-extern void panic(const char *msg, struct interrupt_frame *iframe);
+extern void panic(const char *msg, struct panic_info *panic_info);
 extern void do_panic(const char *msg);
 
 #endif

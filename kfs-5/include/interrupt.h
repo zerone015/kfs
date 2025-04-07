@@ -3,24 +3,15 @@
 
 #include <stdint.h>
 #include "paging.h"
-
-struct general_purpose_registers {
-    uint32_t edi;
-    uint32_t esi;
-    uint32_t ebp;
-    uint32_t esp;
-    uint32_t ebx;
-    uint32_t edx;
-    uint32_t ecx;
-    uint32_t eax;
-};
+#include "panic.h"
 
 struct interrupt_frame {
-    struct general_purpose_registers gpr;
-    uint32_t eip;
-    uint32_t cs;
-    uint32_t eflags;
+    uint32_t edi, esi, ebp, _esp_dummy, ebx, edx, ecx, eax;
+    uint32_t error_code, eip, cs, eflags;
+    uint32_t esp, ss;
 };
+
+#define __from_user(cs)     (((cs) & 0x3) == 3)
 
 /* keyboard handler */
 #define PS2CTRL_DATA_PORT	0x60
@@ -39,8 +30,6 @@ struct interrupt_frame {
 #define PF_PDE_FLAGS_MASK           0x17FF
 #define __is_reserve(ec, entry)     (!((ec) & PF_EC_PRESENT) && ((entry) & PG_RESERVED))
 #define __make_pde(entry)           (alloc_pages(K_PAGE_SIZE) | (((entry) & PF_PDE_FLAGS_MASK) | PG_PRESENT))
-
-extern void panic(const char *msg, struct interrupt_frame *iframe);
 
 extern void division_error_handler(void);
 extern void division_error_handle(struct interrupt_frame iframe);
@@ -71,7 +60,7 @@ extern void stack_fault_handle(struct interrupt_frame iframe);
 extern void gpf_handler(void);
 extern void gpf_handle(struct interrupt_frame iframe);
 extern void page_fault_handler(void);
-extern void page_fault_handle(uint32_t error_code, struct interrupt_frame iframe);
+extern void page_fault_handle(struct interrupt_frame iframe);
 extern void floating_point_handler(void);
 extern void floating_point_handle(struct interrupt_frame iframe);
 extern void alignment_check_handler(void);

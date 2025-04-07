@@ -87,8 +87,8 @@ void hmm_init(uintptr_t mem)
     size_t free_chunk_size;
 
     __freelist_init();
-    free_chunk = (struct malloc_chunk *)mem;
-    free_chunk_size = align_kpage(mem) - mem - 2*MIN_SIZE;
+    free_chunk = (struct malloc_chunk *)align_4byte(mem);
+    free_chunk_size = align_kpage(mem) - align_4byte(mem) - 2*MIN_SIZE;
     __heap_init(free_chunk, free_chunk_size | PREV_INUSE);
     list_add(&free_chunk->list_head, free_list + __freelist_idx(free_chunk->size));
 }
