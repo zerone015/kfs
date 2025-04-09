@@ -240,4 +240,5 @@ void exec_fn(void (*func)())
     __page_dir_init();
     memcpy((void *)USER_CODE_BASE, func, PAGE_SIZE);
     __exec(USER_CODE_BASE);
+    __builtin_unreachable();
 }

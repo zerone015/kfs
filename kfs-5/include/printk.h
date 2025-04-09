@@ -5,7 +5,7 @@
 #define KERN_INFO 	    "<1>"
 #define KERN_DEBUG 	    "<2>"
 
-extern void printk(const char *__restrict, ...);
+void printk(const char *__restrict, ...);
 
 #define has_log_level(format) \
     ((format)[0] == '<' && (format)[1] >= '0' && (format)[1] <= '2' && (format)[2] == '>')

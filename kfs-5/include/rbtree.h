@@ -42,9 +42,9 @@ struct rb_root {
 			typeof(*pos), field); 1; }); \
 	     pos = n)
 
-extern struct rb_node *rb_first_postorder(const struct rb_root *root);
-extern struct rb_node *rb_next_postorder(const struct rb_node *node);
-extern void rb_insert_color(struct rb_node *node, struct rb_root *root);
+struct rb_node *rb_first_postorder(const struct rb_root *root);
+struct rb_node *rb_next_postorder(const struct rb_node *node);
+void rb_insert_color(struct rb_node *node, struct rb_root *root);
 
 static inline void rb_set_parent(struct rb_node *rb, struct rb_node *p)
 {

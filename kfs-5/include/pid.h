@@ -5,7 +5,7 @@
 #define PIDMAP_MAX  (PID_MAX / 8 / 4)
 #define PID_NONE    -1
 
-extern int alloc_pid(void);
-extern void free_pid(int pid);
+int alloc_pid(void);
+void free_pid(int pid);
 
 #endif

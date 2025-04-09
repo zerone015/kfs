@@ -48,10 +48,10 @@ enum vga_color {
 	VGA_COLOR_WHITE = 15,
 };
 
-extern void vga_init(void);
-extern void vga_set_blink(int flag);
-extern void vga_enable_cursor(uint8_t cursor_start, uint8_t cursor_end);
-extern void vga_disable_cursor(void);
-extern void vga_update_cursor(size_t x, size_t y);
+void vga_init(void);
+void vga_set_blink(int flag);
+void vga_enable_cursor(uint8_t cursor_start, uint8_t cursor_end);
+void vga_disable_cursor(void);
+void vga_update_cursor(size_t x, size_t y);
 
 #endif

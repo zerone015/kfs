@@ -5,6 +5,6 @@
 #include <stddef.h>
 #include "paging.h"
 
-extern void proc_init(void);
+void proc_init(void);
 
 #endif

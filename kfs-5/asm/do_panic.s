@@ -8,4 +8,4 @@ do_panic:
     add dword [esp + 12], 16
     push esp
     push dword [esp + 48]
-    call panic
+    jmp panic

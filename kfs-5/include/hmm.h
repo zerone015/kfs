@@ -39,9 +39,9 @@ struct malloc_chunk {
 #define __chunk2mem(p)      ((void *)((uint8_t *)(p) + 2*SIZE_SZ))
 #define __mem2chunk(mem)    ((struct malloc_chunk *)((uint8_t *)(mem) - 2*SIZE_SZ))
 
-extern void hmm_init(uintptr_t mem);
-extern void *kmalloc(size_t size);
-extern void kfree(void *mem);
-extern size_t ksize(void *mem);
+void hmm_init(uintptr_t mem);
+void *kmalloc(size_t size);
+void kfree(void *mem);
+size_t ksize(void *mem);
 
 #endif

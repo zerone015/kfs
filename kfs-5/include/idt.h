@@ -49,6 +49,6 @@ struct idt_ptr {
     uint32_t base;
 } __attribute__((packed));
 
-extern void idt_init(void);
+void idt_init(void);
 
 #endif

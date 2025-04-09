@@ -7,7 +7,7 @@
 #define USER_CODE_BASE      PAGE_SIZE
 #define USER_CODE_SIZE      PAGE_SIZE
 
-extern void exec_fn(void (*func)());
-extern void init_process(void);
+__attribute__((noreturn)) void exec_fn(void (*func)());
+__attribute__((noreturn)) void init_process(void);
 
 #endif

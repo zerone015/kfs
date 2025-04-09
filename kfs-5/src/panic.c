@@ -64,4 +64,5 @@ void panic(const char *msg, struct panic_info *panic_info)
     vga_disable_cursor();
     __registers_clear();
     __system_halt();
+    __builtin_unreachable();
 }

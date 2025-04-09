@@ -8,6 +8,7 @@
 
 extern char _kernel_start;
 extern char _kernel_end;
+extern uint64_t ram_size;
 
 #define MAX_MMAP			50
 #define MAX_BLOCK_SIZE		0x00400000U
@@ -29,11 +30,8 @@ struct buddy_allocator {
 	struct buddy_order orders[MAX_ORDER];
 };
 
-
-extern uint64_t ram_size;
-
-extern void pmm_init(multiboot_info_t* mbd);
-extern uintptr_t alloc_pages(size_t size);
-extern void free_pages(uintptr_t addr, size_t size);
+void pmm_init(multiboot_info_t* mbd);
+uintptr_t alloc_pages(size_t size);
+void free_pages(uintptr_t addr, size_t size);
 
 #endif

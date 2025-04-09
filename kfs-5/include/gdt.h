@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+extern char stack_top;
+
 #define GDT_SIZE 6
 
 #define SEG_DESCTYPE(x)  ((x) << 0x04) // Descriptor type (0 for system, 1 for code/data)
@@ -80,9 +82,7 @@ struct tss {
     uint16_t iomap;
 } __attribute__((packed));
 
-extern char stack_top;
-
-extern void gdt_init(void);
-extern void tss_init(void);
+void gdt_init(void);
+void tss_init(void);
 
 #endif

@@ -2,7 +2,7 @@
 #include "hmm.h"
 #include "panic.h"
 
-static struct list_head ready_queue;
+struct list_head ready_queue;
 struct task_struct *current;
 
 static inline void __ready_queue_init(void)
@@ -13,10 +13,4 @@ static inline void __ready_queue_init(void)
 void scheduler_init(void)
 {
     __ready_queue_init();
-}
-
-void schedule_process(struct task_struct *ts)
-{
-    ts->state = PROCESS_READY;
-    list_add_tail(&ts->ready, &ready_queue);
 }

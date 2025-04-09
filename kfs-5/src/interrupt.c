@@ -6,6 +6,7 @@
 #include "pmm.h"
 #include "paging.h"
 #include "panic.h"
+#include "sched.h"
 
 /* This is valid only for US QWERTY keyboards. */
 static const char key_map[128] =
@@ -221,9 +222,8 @@ void fpu_error_handle(struct interrupt_frame iframe)
 
 void pit_handle(struct interrupt_frame iframe)
 {
-    (void)iframe;
-    printk("pit handler\n");
     pic_send_eoi(PIT_IRQ);
+    context_switch(&iframe);
 }
 
 void keyboard_handle(void)

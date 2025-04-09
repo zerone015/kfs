@@ -44,10 +44,10 @@ struct mapping_file_tree {
 	struct rb_root by_base;
 };
 
-extern uintptr_t vmm_init(void);
-extern uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
-extern size_t vb_size(void *addr);
-extern void *vb_alloc(size_t size);
-extern void vb_free(void *addr);
+uintptr_t vmm_init(void);
+uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
+size_t vb_size(void *addr);
+void *vb_alloc(size_t size);
+void vb_free(void *addr);
 
 #endif
