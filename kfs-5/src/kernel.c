@@ -9,11 +9,9 @@
 #include "hmm.h"
 #include "panic.h"
 #include "pit.h"
-
-void init_process(void)
-{
-	
-}
+#include "sched.h"
+#include "proc.h"
+#include "exec.h"
 
 void kmain(multiboot_info_t* mbd, uint32_t magic)
 {
@@ -33,4 +31,7 @@ void kmain(multiboot_info_t* mbd, uint32_t magic)
 	hmm_init(mem);
 	tss_init();
 	pit_init();
+	scheduler_init();
+	proc_init();
+	init_process();
 }

@@ -165,3 +165,25 @@ keyboard_handler:
 	call keyboard_handle
 	popad
 	iretd
+global syscall_handler	
+extern syscall_handle
+syscall_handler:
+	push 0
+	pushad
+    push ds
+    push es
+    push fs
+    push gs
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    call syscall_handle
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    popad
+	add esp, 4
+    iretd

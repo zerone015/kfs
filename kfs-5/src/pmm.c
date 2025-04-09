@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 static struct buddy_allocator bd_alloc;
+uint64_t ram_size;
 
 static inline void __mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
@@ -19,21 +20,18 @@ static inline void __mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_cou
 	}
 }
 
-static inline uint64_t __ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline void __calc_ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
-    uint64_t ram_size;
-    
-    ram_size = 0;
     for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
             if (ram_size < mmap[i].addr + mmap[i].len)
                 ram_size = mmap[i].addr + mmap[i].len;
         }
 	}
-    return ram_size;
+    ram_size = align_page(ram_size);
 }
 
-static inline size_t __bitmap_size(uint64_t ram_size)
+static inline size_t __bitmap_size(void)
 {
     size_t first_size;
     size_t sum;
@@ -66,7 +64,7 @@ static inline void __memory_align(multiboot_memory_map_t* mmap, size_t mmap_coun
 	}
 }
 
-static inline void __bd_allocator_init(uintptr_t v_addr, uint64_t ram_size)
+static inline void __bd_allocator_init(uintptr_t v_addr)
 {
     size_t first_size;
 
@@ -127,13 +125,13 @@ static inline multiboot_memory_map_t *__bitmap_memory(multiboot_memory_map_t* mm
     return NULL;
 }
 
-static inline uintptr_t __bd_allocator_memory_reserve(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline uintptr_t __bd_allocator_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     multiboot_memory_map_t *useful_mmap;
     size_t bitmap_size;
     uintptr_t v_addr;
 
-    bitmap_size = __bitmap_size(ram_size);
+    bitmap_size = __bitmap_size();
     useful_mmap = __bitmap_memory(mmap, mmap_count, bitmap_size);
     if (!useful_mmap)
         do_panic("Not enough memory for pmm bitmap allocation");
@@ -148,12 +146,12 @@ static inline uintptr_t __bd_allocator_memory_reserve(uint64_t ram_size, multibo
     return v_addr;
 }
 
-static inline void __page_allocator_init(uint64_t ram_size, multiboot_memory_map_t* mmap, size_t mmap_count)
+static inline void __page_allocator_init(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uintptr_t v_addr;
 
-    v_addr = __bd_allocator_memory_reserve(ram_size, mmap, mmap_count);
-    __bd_allocator_init(v_addr, ram_size);
+    v_addr = __bd_allocator_memory_reserve(mmap, mmap_count);
+    __bd_allocator_init(v_addr);
     __pages_register(mmap, mmap_count);
 }
 
@@ -266,7 +264,7 @@ uintptr_t alloc_pages(size_t size)
 			return __calc_pfn(order, offset);
 		}
 	}
-	return PFN_NONE;
+	return ALLOC_PAGES_FAILED;
 }
 
 void free_pages(uintptr_t addr, size_t size)
@@ -295,7 +293,6 @@ void free_pages(uintptr_t addr, size_t size)
 
 void pmm_init(multiboot_info_t* mbd)
 {
-    uint64_t ram_size;
     multiboot_memory_map_t mmap[MAX_MMAP];
     size_t mmap_count;
 
@@ -306,8 +303,8 @@ void pmm_init(multiboot_info_t* mbd)
     __mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
     __mbd_mmap_pages_unmap(mbd);
     __mmap_sanitize(mmap, mmap_count);
-    ram_size = __ram_size(mmap, mmap_count);
+    __calc_ram_size(mmap, mmap_count);
     __kernel_memory_reserve(mmap, mmap_count);
     __memory_align(mmap, mmap_count);
-    __page_allocator_init(ram_size, mmap, mmap_count);
+    __page_allocator_init(mmap, mmap_count);
 }

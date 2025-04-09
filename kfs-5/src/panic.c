@@ -1,7 +1,6 @@
 #include "printk.h"
 #include "tty.h"
 #include "panic.h"
-#include "utils.h"
 #include "paging.h"
 #include <stddef.h>
 

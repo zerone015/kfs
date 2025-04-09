@@ -14,6 +14,8 @@ struct rb_root {
 	struct rb_node *rb_node;
 };
 
+#define RB_ROOT			((struct rb_root) {NULL})
+
 #define	RB_RED			0
 #define	RB_BLACK		1
 
@@ -30,6 +32,18 @@ struct rb_root {
 
 #define	rb_entry(ptr, type, member) container_of(ptr, type, member)
 
+#define rb_entry_safe(ptr, type, member) \
+	({ typeof(ptr) ____ptr = (ptr); \
+	   ____ptr ? rb_entry(____ptr, type, member) : NULL; \
+	})
+#define rbtree_postorder_for_each_entry_safe(pos, n, root, field) \
+	for (pos = rb_entry_safe(rb_first_postorder(root), typeof(*pos), field); \
+	     pos && ({ n = rb_entry_safe(rb_next_postorder(&pos->field), \
+			typeof(*pos), field); 1; }); \
+	     pos = n)
+
+extern struct rb_node *rb_first_postorder(const struct rb_root *root);
+extern struct rb_node *rb_next_postorder(const struct rb_node *node);
 extern void rb_insert_color(struct rb_node *node, struct rb_root *root);
 
 static inline void rb_set_parent(struct rb_node *rb, struct rb_node *p)

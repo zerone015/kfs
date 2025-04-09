@@ -263,3 +263,9 @@ void keyboard_handle(void)
 	}
 	pic_send_eoi(KEYBOARD_IRQ);
 }
+
+int syscall_handle(struct syscall_frame sframe)
+{
+    printk("%s\n", sframe.iframe.ebx);
+    return 0;
+}

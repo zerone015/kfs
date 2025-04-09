@@ -11,6 +11,8 @@
 #define K_PDE_START         0xFFFFFC00
 #define K_PDE_END           0xFFFFFFFF
 
+#define U_VSPACE_START      PAGE_SIZE
+#define U_VSPACE_SIZE       0xC0000000
 #define K_VSPACE_START		0xC0000000
 #define K_VSPACE_END		0xFFFFFFFF
 #define K_VSPACE_SIZE		0x40000000
@@ -19,22 +21,28 @@
 
 #define PG_PRESENT          0x001
 #define PG_RDWR             0x002
-#define PG_PS               0x80
+#define PG_US               0x004
+#define PG_PS               0x080
 #define PG_GLOBAL           0x100
 #define PG_RESERVED         0x800
 #define PG_CONTIGUOUS       0x200
 
-#define PG_RESERVED_ENTRY    (PG_RESERVED | PG_PS | PG_RDWR)
+#define PAGE_DIR            0xFFFFF000
+#define PAGE_TAB            0xFFC00000
 
 #define addr_from_pte(pte)          ((((uintptr_t)(pte) & 0x003FF000) << 10) | (((uintptr_t)(pte) & 0x00000FFF) << 10))
 #define pte_from_addr(addr)         (0xFFC00000 | (((uintptr_t)(addr) & 0xFFC00000) >> 10) | (((uintptr_t)(addr) & 0x003FF000) >> 10))
 #define addr_from_pde(dir)          (((uintptr_t)(dir) & 0x00000FFF) << 20)
 #define pde_from_addr(addr)         (0xFFFFF000 | (((uintptr_t)(addr) & 0xFFC00000) >> 20))
+#define pfn_from_pte(pte)           ((pte) & 0xFFFFF000)     
+#define pfn_from_pde(pte)           ((pte) & 0xFFC00000)     
+#define pfn_from_pde20(pte)         ((pte) & 0xFFFFF000)     
 #define addr_erase_offset(addr)     ((uintptr_t)(addr) & 0xFFFFF000)
 #define addr_get_offset(addr)       ((uintptr_t)(addr) & 0x00000FFF)
 #define k_addr_erase_offset(addr)   ((uintptr_t)(addr) & 0xFFC00000)
 #define k_addr_get_offset(addr)     ((uintptr_t)(addr) & 0x003FFFFF)
 #define is_kernel_space(addr)       ((uintptr_t)(addr) >= K_VSPACE_START)
+#define page_is_present(entry)      ((entry) & PG_PRESENT)
 
 static inline void tlb_flush_all(void) 
 {

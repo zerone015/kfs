@@ -2,11 +2,7 @@
 #define _SCHED_H
 
 #include "list.h"
-
-/* pid */
-#define PID_MAX     32768
-#define PIDMAP_MAX  (PID_MAX / 8 / 4)
-#define PID_NONE    -1
+#include "vmm.h"
 
 enum process_state {
     PROCESS_NEW,
@@ -17,18 +13,30 @@ enum process_state {
     PROCESS_ZOMBIE,
 };
 
+struct process_context {
+    size_t eax, ebx, ecx, edx, esi, edi, ebp, esp;
+    size_t eflags, cs, eip;
+    size_t ss, ds, gs, fs;
+    size_t cr3;
+};
+
 struct task_struct {
     int pid;
     int state;
-    struct tast_struct *parent;
+    struct task_struct *parent;
     struct list_head child;
+    struct list_head ready;
+    struct process_context context;
+    struct user_vblock_tree vblocks;
+    struct mapping_file_tree mapping_files;
     // memory..
     // signal queue..
     // owner..
 };
 
-extern void pid_allocator_init(void);
-extern int alloc_pid(void);
-extern void free_pid(int pid);
+extern struct task_struct *current;
+
+extern void scheduler_init(void);
+extern void schedule_process(struct task_struct *ts);
 
 #endif

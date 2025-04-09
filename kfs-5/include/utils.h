@@ -5,8 +5,6 @@
 #include <stddef.h>
 #include "paging.h"
 
-extern char stack_top;
-
 #define check_flag(flags,bit)           ((flags) & (1 << (bit)))
 #define align_4byte(val)                (((val) + 0x3) & ~0x3)
 #define align_page(val)                 (((val) + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1))
@@ -27,6 +25,7 @@ extern int number_to_string(char *buf, size_t n, size_t radix, const char *base)
 extern int nbrlen(size_t n, int radix);
 extern size_t strlen(const char *str);
 extern void *memset(void *p, int value, size_t size);
+extern void *memset32(void *p, size_t value, size_t count) ;
 extern void *memcpy(void *restrict dstptr, const void *restrict srcptr, size_t size);
 
 #endif

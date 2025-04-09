@@ -9,6 +9,8 @@ struct panic_info {
     uint32_t eip, eflags;  
 };
 
+extern char stack_top;
+
 extern void panic(const char *msg, struct panic_info *panic_info);
 extern void do_panic(const char *msg);
 

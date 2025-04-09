@@ -283,3 +283,35 @@ void rb_erase_color(struct rb_node *parent, struct rb_root *root)
 		}
 	}
 }
+
+static struct rb_node *rb_left_deepest_node(const struct rb_node *node)
+{
+	for (;;) {
+		if (node->rb_left)
+			node = node->rb_left;
+		else if (node->rb_right)
+			node = node->rb_right;
+		else
+			return (struct rb_node *)node;
+	}
+}
+
+struct rb_node *rb_first_postorder(const struct rb_root *root)
+{
+	if (!root->rb_node)
+		return NULL;
+	return rb_left_deepest_node(root->rb_node);
+}
+
+struct rb_node *rb_next_postorder(const struct rb_node *node)
+{
+	const struct rb_node *parent;
+
+	if (!node)
+		return NULL;
+	parent = rb_parent(node);
+	if (parent && node == parent->rb_left && parent->rb_right)
+		return rb_left_deepest_node(parent->rb_right);
+	else
+		return (struct rb_node *)parent;
+}

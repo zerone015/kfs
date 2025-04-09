@@ -11,6 +11,11 @@ struct interrupt_frame {
     uint32_t esp, ss;
 };
 
+struct syscall_frame {
+    uint32_t gs, fs, es, ds;
+    struct interrupt_frame iframe;
+};
+
 #define __from_user(cs)     (((cs) & 0x3) == 3)
 
 /* keyboard handler */
@@ -79,5 +84,7 @@ extern void pit_handler(void);
 extern void pit_handle(struct interrupt_frame iframe);
 extern void keyboard_handler(void);
 extern void keyboard_handle(void);
+extern int syscall_handler(void);
+extern int syscall_handle(struct syscall_frame sframe);
 
 #endif

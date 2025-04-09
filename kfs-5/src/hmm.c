@@ -56,7 +56,7 @@ static inline struct malloc_chunk *__morecore(size_t size)
     else
         size = align_kpage(size);
     free_chunk = (struct malloc_chunk *)vb_alloc(size);
-    if (!free_chunk)
+    if (free_chunk == VB_ALLOC_FAILED)
         return NULL;
     free_chunk_size = size - 2*MIN_SIZE;
     __heap_init(free_chunk, free_chunk_size | IS_HEAD | PREV_INUSE);

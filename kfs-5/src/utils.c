@@ -54,6 +54,16 @@ void *memset(void *p, int value, size_t size)
 	return p;
 }
 
+void *memset32(void *p, size_t value, size_t count) 
+{
+	size_t *buf;
+	
+	buf = (size_t *)p;
+	for (size_t i = 0; i < count; i++)
+		buf[i] = (size_t)value;
+	return p;
+}
+
 void *memcpy(void *restrict dstptr, const void *restrict srcptr, size_t size) 
 {
 	unsigned char *dst = (unsigned char *)dstptr;

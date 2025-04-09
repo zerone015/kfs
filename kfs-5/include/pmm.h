@@ -15,7 +15,10 @@ extern char _kernel_end;
 #define K_PLOAD_START		((size_t)(&_kernel_start))
 #define K_PLOAD_END			((size_t)(&_kernel_end))
 #define KERNEL_SIZE			(K_PLOAD_END - K_PLOAD_START)
-#define PFN_NONE			1
+#define ALLOC_PAGES_FAILED	((uintptr_t)-1)
+
+#define __block_size(order)					(PAGE_SIZE << (order))
+#define __bitmap_first_size(ram)    		(((((ram) + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8)
 
 struct buddy_order {
 	uint32_t *bitmap;
@@ -26,8 +29,8 @@ struct buddy_allocator {
 	struct buddy_order orders[MAX_ORDER];
 };
 
-#define __block_size(order)					(PAGE_SIZE << (order))
-#define __bitmap_first_size(ram)    		(((((ram) + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8)
+
+extern uint64_t ram_size;
 
 extern void pmm_init(multiboot_info_t* mbd);
 extern uintptr_t alloc_pages(size_t size);

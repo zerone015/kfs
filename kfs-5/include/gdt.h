@@ -38,8 +38,8 @@
 
 #define GDT_SELECTOR_CODE_PL0   0x08
 #define GDT_SELECTOR_DATA_PL0   0x10
-#define GDT_SELECTOR_CODE_PL3   0x18
-#define GDT_SELECTOR_DATA_PL3   0x20
+#define GDT_SELECTOR_CODE_PL3   0x1B
+#define GDT_SELECTOR_DATA_PL3   0x23
 #define GDT_SELECTOR_TSS        0x28
 
 struct gdt_entry {
@@ -79,6 +79,8 @@ struct tss {
     uint16_t ldtr, _res7;
     uint16_t iomap;
 } __attribute__((packed));
+
+extern char stack_top;
 
 extern void gdt_init(void);
 extern void tss_init(void);

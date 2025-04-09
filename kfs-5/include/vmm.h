@@ -7,56 +7,47 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define KVB_MAX    		((K_VSPACE_SIZE / K_PAGE_SIZE / 2) + 1)
-#define KVB_MAX_SIZE    (KVB_MAX * sizeof(struct k_vblock))
+#define K_VBLOCK_MAX    	((K_VSPACE_SIZE / K_PAGE_SIZE / 2) + 1)
+#define K_VBLOCK_MAX_SIZE  	(K_VBLOCK_MAX * sizeof(struct kernel_vblock))
+#define VB_ALLOC_FAILED		((void *)-1)
 
-extern uintptr_t vmm_init(void);
-extern uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
-extern size_t vb_size(void *addr);
-extern void *vb_alloc(size_t size);
-extern void vb_free(void *addr);
-
-struct k_vblock {
+struct kernel_vblock {
 	uintptr_t base;
 	size_t size;
 	struct list_head list_head;
 };
 
 struct ptr_stack {
-	struct k_vblock *ptrs[KVB_MAX];
+	struct kernel_vblock *ptrs[K_VBLOCK_MAX];
 	int top;
 };
 
-struct k_vblock_allocator {
-	struct list_head vblocks;
-	struct ptr_stack ptr_stack;
-};
-
-struct u_vblock {
-	struct rb_node *by_base;
-	struct rb_node *by_size;
+struct user_vblock {
+	struct rb_node by_base;
+	struct rb_node by_size;
 	uintptr_t base;
 	size_t size;
 };
 
-struct u_mapped_vblock {
-	struct rb_node *by_base;
+struct mapping_file {
+	struct rb_node by_base;
 	uintptr_t base;
 	size_t size;
 };
 
-struct u_vblock_tree {
+struct user_vblock_tree {
 	struct rb_root by_base;
 	struct rb_root by_size;
 };
 
-struct u_mapped_vblock_tree {
+struct mapping_file_tree {
 	struct rb_root by_base;
 };
 
-struct u_vblock_allocator {
-	struct u_vblock_tree vblocks;
-	struct u_mapped_vblock_tree mapped_vblocks;
-};
+extern uintptr_t vmm_init(void);
+extern uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
+extern size_t vb_size(void *addr);
+extern void *vb_alloc(size_t size);
+extern void vb_free(void *addr);
 
 #endif

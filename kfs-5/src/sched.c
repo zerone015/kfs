@@ -1,22 +1,22 @@
 #include "sched.h"
+#include "hmm.h"
+#include "panic.h"
 
-static uint32_t pidmap[PIDMAP_MAX];
+static struct list_head ready_queue;
+struct task_struct *current;
 
-int alloc_pid(void)
+static inline void __ready_queue_init(void)
 {
-    int offset;
-
-    for (int i = 0; i < PIDMAP_MAX; i++) {
-        if (~pidmap[i]) {
-            offset = __builtin_ctz(~pidmap[i]);
-            BIT_SET(pidmap[i], offset);
-            return offset + 32*i;
-        }
-    }
-    return PID_NONE;
+    init_list_head(&ready_queue);
 }
 
-void free_pid(int pid)
+void scheduler_init(void)
 {
-    BIT_CLEAR(pidmap[pid / 32], pid % 32);
+    __ready_queue_init();
+}
+
+void schedule_process(struct task_struct *ts)
+{
+    ts->state = PROCESS_READY;
+    list_add_tail(&ts->ready, &ready_queue);
 }
