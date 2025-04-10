@@ -51,10 +51,10 @@ static inline struct malloc_chunk *__morecore(size_t size)
     struct malloc_chunk *free_chunk;
     size_t free_chunk_size;
 
-    if (is_align_kpage(size))
+    if (is_align_4mb_page(size))
         size += K_PAGE_SIZE;
     else
-        size = align_kpage(size);
+        size = align_4mb_page(size);
     free_chunk = (struct malloc_chunk *)vb_alloc(size);
     if (free_chunk == VB_ALLOC_FAILED)
         return NULL;
@@ -88,7 +88,7 @@ void hmm_init(uintptr_t mem)
 
     __freelist_init();
     free_chunk = (struct malloc_chunk *)align_4byte(mem);
-    free_chunk_size = align_kpage(mem) - align_4byte(mem) - 2*MIN_SIZE;
+    free_chunk_size = align_4mb_page(mem) - align_4byte(mem) - 2*MIN_SIZE;
     __heap_init(free_chunk, free_chunk_size | PREV_INUSE);
     list_add(&free_chunk->list_head, free_list + __freelist_idx(free_chunk->size));
 }

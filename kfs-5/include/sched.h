@@ -20,8 +20,7 @@ enum process_state {
 
 struct process_context {
     size_t eax, ebx, ecx, edx, esi, edi, ebp, esp;
-    size_t eflags, cs, eip;
-    size_t ss, ds, gs, fs;
+    size_t eflags, eip;
     size_t cr3;
 };
 
@@ -29,6 +28,7 @@ struct task_struct {
     int pid;
     int state;
     struct task_struct *parent;
+    struct list_head child_list;
     struct list_head child;
     struct list_head ready;
     struct process_context context;
@@ -40,20 +40,6 @@ struct task_struct {
 };
 
 void scheduler_init(void);
-
-static inline void __task_enqueue(struct task_struct *ts)
-{
-    list_add_tail(&ts->ready, &ready_queue);
-}
-
-static inline struct task_struct *__task_dequeue(void)
-{
-    struct task_struct *ts;
-
-    ts = list_first_entry(&ready_queue, struct task_struct, ready);
-    list_del(&ts->ready);
-    return ts;
-}
 
 static inline void __context_save(struct interrupt_frame *iframe)
 {
@@ -107,11 +93,25 @@ static inline void __next_task_run(void)
     );
 }
 
+static inline void task_enqueue(struct task_struct *ts)
+{
+    list_add_tail(&ts->ready, &ready_queue);
+}
+
+static inline struct task_struct *task_dequeue(void)
+{
+    struct task_struct *ts;
+
+    ts = list_first_entry(&ready_queue, struct task_struct, ready);
+    list_del(&ts->ready);
+    return ts;
+}
+
 static inline void context_switch(struct interrupt_frame *iframe)
 {
     __context_save(iframe);
-    __task_enqueue(current);
-    current = __task_dequeue();
+    task_enqueue(current);
+    current = task_dequeue();
     __next_task_run();
 }
 

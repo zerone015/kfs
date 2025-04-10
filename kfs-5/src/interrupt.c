@@ -7,6 +7,7 @@
 #include "paging.h"
 #include "panic.h"
 #include "sched.h"
+#include "proc.h"
 
 /* This is valid only for US QWERTY keyboards. */
 static const char key_map[128] =
@@ -80,7 +81,7 @@ static const char shift_key_map[128] =
     0,  /* All other keys are undefined */
 };
 
-static void __do_panic(const char *msg, struct interrupt_frame *iframe)
+static __attribute__((noreturn)) void __do_panic(const char *msg, struct interrupt_frame *iframe) 
 {
     struct panic_info panic_info;
 
@@ -99,6 +100,7 @@ static void __do_panic(const char *msg, struct interrupt_frame *iframe)
         panic_info.esp = iframe->_esp_dummy + (offsetof(struct interrupt_frame, eflags) \
                      - offsetof(struct interrupt_frame, eax));
     panic(msg, &panic_info);
+    __builtin_unreachable();
 }
 
 void division_error_handle(struct interrupt_frame iframe)
@@ -173,16 +175,58 @@ void gpf_handle(struct interrupt_frame iframe)
     __do_panic("general protection fault", &iframe);
 }
 
+static inline void __handle_invalid_access() 
+{
+    printk("segfault\n");
+    // TODO: 프로세스 종료 루틴 연결
+}
+
+static void __handle_cow(uint32_t *old_pte) 
+{
+    size_t pfn;
+    void *new;
+    uint32_t *new_pte;
+    
+    pfn = pfn_from_pte(*old_pte);
+    if (page_ref[pfn] > 1) {
+        new = vb_alloc(PAGE_SIZE);
+        memcpy32(new, (void *)addr_from_pte(old_pte), PAGE_SIZE / 4);
+        new_pte = (uint32_t *)pte_from_addr(new);
+        *old_pte = page_from_pte(*new_pte) | (*old_pte & 0xDFF) | PG_RDWR;
+        vb_unmap(new);
+        page_ref[pfn]--;
+    } else {
+        *old_pte = (*old_pte & ~PG_COW_RDWR) | PG_RDWR;
+    }
+}
+
 void page_fault_handle(struct interrupt_frame iframe) 
 {
     uintptr_t fault_addr;
-    uint32_t *pde;
+    uint32_t *pte, *pde;
 
     asm volatile ("mov %%cr2, %0" : "=r" (fault_addr) :: "memory");
-    pde = (uint32_t *)pde_from_addr(fault_addr);
-    if (!__is_reserve(iframe.error_code, *pde))
-        __do_panic("page fault", &iframe);
-    *pde = __make_pde(*pde);
+    if (__is_user(iframe.error_code)) {
+        if (!has_pgtab(fault_addr)) {
+            __handle_invalid_access();
+            return;
+        }
+        pte = (uint32_t *)pte_from_addr(fault_addr);
+        if (is_rdwr_cow(*pte)) {
+            __handle_cow(pte);
+            return;
+        }
+        if (!__is_reserve(iframe.error_code, *pte)) {
+            __handle_invalid_access();
+            return;
+        }
+        *pte = __make_pte(*pte);
+    } else {
+        pde = (uint32_t *)pde_from_addr(fault_addr);
+        if (!__is_reserve(iframe.error_code, *pde))
+            __do_panic("page fault", &iframe);
+        *pde = __make_pde(*pde);
+    }
 }
 
 void floating_point_handle(struct interrupt_frame iframe)

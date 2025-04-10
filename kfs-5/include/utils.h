@@ -7,9 +7,9 @@
 
 #define check_flag(flags,bit)           ((flags) & (1 << (bit)))
 #define align_4byte(val)                (((val) + 0x3) & ~0x3)
-#define align_page(val)                 (((val) + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1))
-#define align_kpage(val)                (((val) + (K_PAGE_SIZE - 1)) & ~(K_PAGE_SIZE - 1))
-#define is_align_kpage(val)				(!((val) & (K_PAGE_SIZE - 1)))
+#define align_4kb_page(val)             (((val) + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1))
+#define align_4mb_page(val)             (((val) + (K_PAGE_SIZE - 1)) & ~(K_PAGE_SIZE - 1))
+#define is_align_4mb_page(val)			(!((val) & (K_PAGE_SIZE - 1)))
 #define container_of(ptr, type, member) ({				\
 	    uint8_t *__mptr = (uint8_t *)(ptr);				\
 	    ((type *)(__mptr - offsetof(type, member))); })
@@ -27,5 +27,6 @@ size_t strlen(const char *str);
 void *memset(void *p, int value, size_t size);
 void *memset32(void *p, size_t value, size_t count) ;
 void *memcpy(void *restrict dstptr, const void *restrict srcptr, size_t size);
+void *memcpy32(void *restrict dstptr, const void *restrict srcptr, size_t count) ;
 
 #endif

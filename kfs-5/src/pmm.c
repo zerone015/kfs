@@ -28,7 +28,7 @@ static inline void __calc_ram_size(multiboot_memory_map_t* mmap, size_t mmap_cou
                 ram_size = mmap[i].addr + mmap[i].len;
         }
 	}
-    ram_size = align_page(ram_size);
+    ram_size = align_4kb_page(ram_size);
 }
 
 static inline size_t __bitmap_size(void)
@@ -44,7 +44,7 @@ static inline size_t __bitmap_size(void)
         if (first_size < 32)
             first_size = 32;
     }
-    return align_page(sum);
+    return align_4kb_page(sum);
 }
 
 static inline void __memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
@@ -53,7 +53,7 @@ static inline void __memory_align(multiboot_memory_map_t* mmap, size_t mmap_coun
 
     for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            align_addr = align_page(mmap[i].addr);
+            align_addr = align_4kb_page(mmap[i].addr);
             if (mmap[i].len <= align_addr - mmap[i].addr) {
                 mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
             } else {
@@ -187,7 +187,7 @@ static inline void __mbd_mmap_pages_unmap(multiboot_info_t* mbd)
     uint32_t *pde;
 
     pde = (uint32_t *)pde_from_addr(mbd->mmap_addr);
-    for (size_t i = 0; i < ((align_kpage(mbd->mmap_length) + K_PAGE_SIZE) / K_PAGE_SIZE); i++) {
+    for (size_t i = 0; i < ((align_4mb_page(mbd->mmap_length) + K_PAGE_SIZE) / K_PAGE_SIZE); i++) {
         pde[i] = 0;
         tlb_flush(mbd->mmap_addr);
         mbd->mmap_addr += K_PAGE_SIZE;
@@ -222,7 +222,7 @@ static inline void __bit_clear(uint32_t *bitmap, size_t offset)
     BIT_CLEAR(bitmap[offset / 32], offset % 32);
 }
 
-static inline uintptr_t __calc_pfn(size_t order, size_t offset)
+static inline uintptr_t __calc_addr(size_t order, size_t offset)
 {
     return __block_size(order) * offset;   
 }
@@ -261,7 +261,7 @@ uintptr_t alloc_pages(size_t size)
                 __buddy_bit_set(bitmap, offset);
 				bd_alloc.orders[i].free_count++;
 			}
-			return __calc_pfn(order, offset);
+			return __calc_addr(order, offset);
 		}
 	}
 	return ALLOC_PAGES_FAILED;

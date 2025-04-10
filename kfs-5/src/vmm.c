@@ -69,7 +69,7 @@ static inline void __vb_reserve(uintptr_t v_addr, size_t size)
     pde[i] = PG_RESERVED | PG_PS | PG_RDWR;
 }
 
-static inline size_t __vb_size_with_clear(uintptr_t addr)
+static inline size_t __vb_size_and_act(uintptr_t addr, bool do_free)
 {
     uint32_t *pde;
     size_t size;
@@ -79,12 +79,23 @@ static inline size_t __vb_size_with_clear(uintptr_t addr)
     do {
         if (page_is_present(*pde)) {
             tlb_flush(addr);
-            free_pages(pfn_from_pde(*pde), K_PAGE_SIZE);
+            if (do_free)
+                free_pages(page_from_pde_4mb(*pde), K_PAGE_SIZE);
         }
         size += K_PAGE_SIZE;
         addr += K_PAGE_SIZE;
     } while (*pde++ & PG_CONTIGUOUS);
     return size;
+}
+
+static inline size_t __vb_size_with_free(uintptr_t addr)
+{
+   return __vb_size_and_act(addr, true);
+}
+
+static inline size_t __vb_size_without_free(uintptr_t addr)
+{
+   return __vb_size_and_act(addr, false);
 }
 
 static inline void __vb_add_and_merge(uintptr_t addr, size_t size)
@@ -133,7 +144,15 @@ void vb_free(void *addr)
 {
     size_t size;
 
-    size = __vb_size_with_clear((uintptr_t)addr);
+    size = __vb_size_with_free((uintptr_t)addr);
+    __vb_add_and_merge((uintptr_t)addr, size);
+}
+
+void vb_unmap(void *addr)
+{
+    size_t size;
+
+    size = __vb_size_without_free((uintptr_t)addr);
     __vb_add_and_merge((uintptr_t)addr, size);
 }
 
@@ -166,7 +185,7 @@ uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags)
     while (*pde)
         pde++;
     p_addr = k_addr_erase_offset(p_addr);
-    size = align_kpage(size);
+    size = align_4mb_page(size);
     for (size_t i = 0; i < (size / K_PAGE_SIZE); i++) {
         pde[i] = p_addr | flags;
         p_addr += K_PAGE_SIZE;

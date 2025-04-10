@@ -25,18 +25,27 @@
 #define PG_PS               0x080
 #define PG_GLOBAL           0x100
 #define PG_RESERVED         0x800
-#define PG_CONTIGUOUS       0x200
+#define PG_COW_RDWR         0x200
+#define PG_COW_RDONLY       0x400
+#define PG_CONTIGUOUS       0x200  // only kernel space
 
 #define PAGE_DIR            0xFFFFF000
 #define PAGE_TAB            0xFFC00000
 
-#define addr_from_pte(pte)          ((((uintptr_t)(pte) & 0x003FF000) << 10) | (((uintptr_t)(pte) & 0x00000FFF) << 10))
+#define addr_from_pte(p)            ((((uintptr_t)(p) & 0x003FF000) << 10) | (((uintptr_t)(p) & 0x00000FFF) << 10))
 #define pte_from_addr(addr)         (0xFFC00000 | (((uintptr_t)(addr) & 0xFFC00000) >> 10) | (((uintptr_t)(addr) & 0x003FF000) >> 10))
-#define addr_from_pde(dir)          (((uintptr_t)(dir) & 0x00000FFF) << 20)
+#define addr_from_pde(p)            (((uintptr_t)(p) & 0x00000FFF) << 20)
 #define pde_from_addr(addr)         (0xFFFFF000 | (((uintptr_t)(addr) & 0xFFC00000) >> 20))
-#define pfn_from_pte(pte)           ((pte) & 0xFFFFF000)     
-#define pfn_from_pde(pte)           ((pte) & 0xFFC00000)     
-#define pfn_from_pde20(pte)         ((pte) & 0xFFFFF000)     
+#define page_from_pte(pte)          ((pte) & 0xFFFFF000)    
+#define page_from_pde_4mb(pte)      ((pte) & 0xFFC00000)     
+#define page_from_pde_4kb(pte)      ((pte) & 0xFFFFF000)
+#define pfn_from_pte(pte)           (page_from_pte(pte) >> 12)    
+#define flags_from_entry(entry)     ((entry & 0x00000FFF))
+#define pde_idx(addr)               ((addr) >> 22)
+#define pte_idx(addr)               (((addr) >> 12) & 0x3FF)
+#define has_pgtab(addr)             (*((uint32_t *)pde_from_addr((addr) & 0xFFC00000)) != 0)
+#define is_rdonly_cow(pte)          (((pte) & PG_COW_RDONLY) != 0)
+#define is_rdwr_cow(pte)            (((pte) & PG_COW_RDWR) != 0)
 #define addr_erase_offset(addr)     ((uintptr_t)(addr) & 0xFFFFF000)
 #define addr_get_offset(addr)       ((uintptr_t)(addr) & 0x00000FFF)
 #define k_addr_erase_offset(addr)   ((uintptr_t)(addr) & 0xFFC00000)

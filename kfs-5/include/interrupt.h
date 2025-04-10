@@ -12,7 +12,7 @@ struct interrupt_frame {
 };
 
 struct syscall_frame {
-    uint32_t gs, fs, es, ds;
+    uint32_t es, ds;
     struct interrupt_frame iframe;
 };
 
@@ -32,9 +32,13 @@ struct syscall_frame {
 
 /* page fault handler */
 #define PF_EC_PRESENT               PG_PRESENT
+#define PF_EC_USER                  PG_US
 #define PF_PDE_FLAGS_MASK           0x17FF
+#define PF_PTE_FLAGS_MASK           0x1FF
+#define __is_user(ec)               ((ec) & PF_EC_USER)
 #define __is_reserve(ec, entry)     (!((ec) & PF_EC_PRESENT) && ((entry) & PG_RESERVED))
 #define __make_pde(entry)           (alloc_pages(K_PAGE_SIZE) | (((entry) & PF_PDE_FLAGS_MASK) | PG_PRESENT))
+#define __make_pte(entry)           (alloc_pages(PAGE_SIZE) | (((entry) & PF_PTE_FLAGS_MASK) | PG_PRESENT))
 
 void division_error_handler(void);
 void division_error_handle(struct interrupt_frame iframe);

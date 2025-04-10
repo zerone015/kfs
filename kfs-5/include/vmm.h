@@ -49,5 +49,57 @@ uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
 size_t vb_size(void *addr);
 void *vb_alloc(size_t size);
 void vb_free(void *addr);
+void vb_unmap(void *addr);
+
+static inline void vblock_bybase_add(struct user_vblock *new, struct rb_root *root)
+{
+    struct rb_node **cur, *parent; 
+
+    cur = &root->rb_node;
+    parent = NULL;
+    while (*cur) {
+        parent = *cur;
+        if (new->base < rb_entry(parent, struct user_vblock, by_base)->base)
+            cur = &parent->rb_left;
+        else
+            cur = &parent->rb_right;
+    }
+    rb_link_node(&new->by_base, parent, cur);
+    rb_insert_color(&new->by_base, root);
+}
+
+static inline void vblock_bysize_add(struct user_vblock *new, struct rb_root *root)
+{
+    struct rb_node **cur, *parent; 
+
+    cur = &root->rb_node;
+    parent = NULL;
+    while (*cur) {
+        parent = *cur;
+        if (new->size < rb_entry(parent, struct user_vblock, by_size)->size)
+            cur = &parent->rb_left;
+        else
+            cur = &parent->rb_right;
+    }
+    rb_link_node(&new->by_size, parent, cur);
+    rb_insert_color(&new->by_size, root);
+}
+
+static inline void mapping_file_add(struct mapping_file *new, struct rb_root *root)
+{
+    struct rb_node **cur, *parent; 
+
+    cur = &root->rb_node;
+    parent = NULL;
+    while (*cur) {
+        parent = *cur;
+        if (new->base < rb_entry(parent, struct mapping_file, by_base)->base)
+            cur = &parent->rb_left;
+        else
+            cur = &parent->rb_right;
+    }
+    rb_link_node(&new->by_base, parent, cur);
+    rb_insert_color(&new->by_base, root);
+}
 
 #endif
