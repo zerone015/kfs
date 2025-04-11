@@ -27,7 +27,8 @@ struct process_context {
 struct task_struct {
     int pid;
     int state;
-    struct task_struct *parent;
+    size_t time_slice_remaining;
+    struct task_struct *parent; 
     struct list_head child_list;
     struct list_head child;
     struct list_head ready;
@@ -107,7 +108,7 @@ static inline struct task_struct *task_dequeue(void)
     return ts;
 }
 
-static inline void context_switch(struct interrupt_frame *iframe)
+static inline void schedule(struct interrupt_frame *iframe)
 {
     __context_save(iframe);
     task_enqueue(current);

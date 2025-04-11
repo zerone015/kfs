@@ -168,6 +168,7 @@ static inline void __exec(uintptr_t user_eip) {
 static inline void __task_init(struct task_struct *ts)
 {
 	ts->pid = alloc_pid();
+    ts->time_slice_remaining = 10;
 	ts->parent = NULL;
 	ts->vblocks.by_base = RB_ROOT;
 	ts->vblocks.by_size = RB_ROOT;

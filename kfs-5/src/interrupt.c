@@ -267,7 +267,12 @@ void fpu_error_handle(struct interrupt_frame iframe)
 void pit_handle(struct interrupt_frame iframe)
 {
     pic_send_eoi(PIT_IRQ);
-    context_switch(&iframe);
+    if (current->time_slice_remaining != 0) {
+        if (current->time_slice_remaining <= 1)
+            schedule(&iframe);
+        else 
+            current->time_slice_remaining--;
+    }
 }
 
 void keyboard_handle(void)

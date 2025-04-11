@@ -41,7 +41,7 @@ static inline void __cow_prepare_pages(void)
         base = cur->base;
         size = cur->size;
         pte = (uint32_t *)pte_from_addr(base);
-        if (cur->base == USER_CODE_BASE) {
+        if (base == USER_CODE_BASE) {
             do {
                 *pte = (*pte | PG_COW_RDONLY);
                 pte++;
@@ -129,6 +129,7 @@ static inline struct task_struct * __create_child_task(struct interrupt_frame *i
 
     ts = kmalloc(sizeof(struct task_struct));
     ts->pid = alloc_pid();
+    ts->time_slice_remaining = 10;
     ts->parent = current;
     ts->state = PROCESS_READY;
     init_list_head(&ts->child_list);
