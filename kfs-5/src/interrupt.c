@@ -81,7 +81,7 @@ static const char shift_key_map[128] =
     0,  /* All other keys are undefined */
 };
 
-static __attribute__((noreturn)) void __do_panic(const char *msg, struct interrupt_frame *iframe) 
+static __attribute__((noreturn)) void panic_handle(const char *msg, struct interrupt_frame *iframe) 
 {
     struct panic_info panic_info;
 
@@ -94,7 +94,7 @@ static __attribute__((noreturn)) void __do_panic(const char *msg, struct interru
     panic_info.eflags = iframe->eflags;
     panic_info.eip = iframe->eip;
     panic_info.esi = iframe->esi;
-    if (__from_user(iframe->cs))
+    if (panic_is_user(iframe->cs))
         panic_info.esp = iframe->esp + 4;
     else
         panic_info.esp = iframe->_esp_dummy + (offsetof(struct interrupt_frame, eflags) \
@@ -105,7 +105,7 @@ static __attribute__((noreturn)) void __do_panic(const char *msg, struct interru
 
 void division_error_handle(struct interrupt_frame iframe)
 {
-    __do_panic("division error exception", &iframe);
+    panic_handle("division error exception", &iframe);
 }
 
 void debug_handle(struct interrupt_frame iframe)
@@ -116,7 +116,7 @@ void debug_handle(struct interrupt_frame iframe)
 
 void nmi_handle(struct interrupt_frame iframe)
 {
-    __do_panic("fatal hardware error", &iframe);
+    panic_handle("fatal hardware error", &iframe);
 }
 
 void breakpoint_handle(struct interrupt_frame iframe)
@@ -127,61 +127,61 @@ void breakpoint_handle(struct interrupt_frame iframe)
 
 void overflow_handle(struct interrupt_frame iframe)
 {
-    __do_panic("overflow exception", &iframe);
+    panic_handle("overflow exception", &iframe);
 }
 
 void bound_range_handle(struct interrupt_frame iframe)
 {
-    __do_panic("bound range exception", &iframe);
+    panic_handle("bound range exception", &iframe);
 }
 
 void invalid_opcode_handle(struct interrupt_frame iframe)
 {
-    __do_panic("invalid opcode", &iframe);
+    panic_handle("invalid opcode", &iframe);
 }
 
 void device_not_avail_handle(struct interrupt_frame iframe)
 {
-    __do_panic("device not available", &iframe);
+    panic_handle("device not available", &iframe);
 }
 
 void double_fault_handle(struct interrupt_frame iframe)
 {
-    __do_panic("double fault", &iframe);
+    panic_handle("double fault", &iframe);
 }
 
 void coprocessor_handle(struct interrupt_frame iframe)
 {
-    __do_panic("coprocessor segment overrun", &iframe);
+    panic_handle("coprocessor segment overrun", &iframe);
 }
 
 void invalid_tss_handle(struct interrupt_frame iframe)
 {
-    __do_panic("invalid tss", &iframe);
+    panic_handle("invalid tss", &iframe);
 }
 
 void segment_not_present_handle(struct interrupt_frame iframe)
 {
-    __do_panic("segment not present", &iframe);
+    panic_handle("segment not present", &iframe);
 }
 
 void stack_fault_handle(struct interrupt_frame iframe)
 {
-    __do_panic("stack fault", &iframe);
+    panic_handle("stack fault", &iframe);
 }
 
 void gpf_handle(struct interrupt_frame iframe)
 {
-    __do_panic("general protection fault", &iframe);
+    panic_handle("general protection fault", &iframe);
 }
 
-static inline void __handle_invalid_access() 
+static inline void invalid_access_handle() 
 {
     printk("segfault\n");
     // TODO: 프로세스 종료 루틴 연결
 }
 
-static void __handle_cow(uint32_t *old_pte) 
+static void cow_handle(uint32_t *old_pte) 
 {
     size_t pfn;
     void *new;
@@ -206,62 +206,62 @@ void page_fault_handle(struct interrupt_frame iframe)
     uint32_t *pte, *pde;
 
     asm volatile ("mov %%cr2, %0" : "=r" (fault_addr) :: "memory");
-    if (__is_user(iframe.error_code)) {
+    if (pf_is_user(iframe.error_code)) {
         if (!has_pgtab(fault_addr)) {
-            __handle_invalid_access();
+            invalid_access_handle();
             return;
         }
         pte = (uint32_t *)pte_from_addr(fault_addr);
         if (is_rdwr_cow(*pte)) {
-            __handle_cow(pte);
+            cow_handle(pte);
             return;
         }
-        if (!__is_reserve(iframe.error_code, *pte)) {
-            __handle_invalid_access();
+        if (!pg_is_reserve(iframe.error_code, *pte)) {
+            invalid_access_handle();
             return;
         }
-        *pte = __make_pte(*pte);
+        MAKE_PRESENT_PTE(*pte);
     } else {
         pde = (uint32_t *)pde_from_addr(fault_addr);
-        if (!__is_reserve(iframe.error_code, *pde))
-            __do_panic("page fault", &iframe);
-        *pde = __make_pde(*pde);
+        if (!pg_is_reserve(iframe.error_code, *pde))
+            panic_handle("page fault", &iframe);
+        MAKE_PRESENT_PDE(*pde);
     }
 }
 
 void floating_point_handle(struct interrupt_frame iframe)
 {
-    __do_panic("floating point exception", &iframe);
+    panic_handle("floating point exception", &iframe);
 }
 
 void alignment_check_handle(struct interrupt_frame iframe)
 {
-    __do_panic("alignment check exception", &iframe);
+    panic_handle("alignment check exception", &iframe);
 }
 
 void machine_check_handle(struct interrupt_frame iframe)
 {
-    __do_panic("machine check exception", &iframe);
+    panic_handle("machine check exception", &iframe);
 }
 
 void simd_floating_point_handle(struct interrupt_frame iframe)
 {
-    __do_panic("simd floating point exception", &iframe);
+    panic_handle("simd floating point exception", &iframe);
 }
 
 void virtualization_handle(struct interrupt_frame iframe)
 {
-    __do_panic("virtualization exception", &iframe);
+    panic_handle("virtualization exception", &iframe);
 }
 
 void control_protection_handle(struct interrupt_frame iframe)
 {
-    __do_panic("control protection exception", &iframe);
+    panic_handle("control protection exception", &iframe);
 }
 
 void fpu_error_handle(struct interrupt_frame iframe)
 {
-    __do_panic("FPU error interrupt", &iframe);
+    panic_handle("FPU error interrupt", &iframe);
 }
 
 void pit_handle(struct interrupt_frame iframe)

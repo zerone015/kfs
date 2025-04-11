@@ -42,7 +42,7 @@ struct task_struct {
 
 void scheduler_init(void);
 
-static inline void __context_save(struct interrupt_frame *iframe)
+static inline void context_save(struct interrupt_frame *iframe)
 {
     current->context.eax = iframe->eax;
     current->context.ebp = iframe->ebp;
@@ -57,7 +57,7 @@ static inline void __context_save(struct interrupt_frame *iframe)
     current->state = PROCESS_READY;
 }
 
-static inline void __next_task_run(void)
+static inline void next_task_run(void)
 {
     struct process_context *ctx;
 
@@ -110,10 +110,10 @@ static inline struct task_struct *task_dequeue(void)
 
 static inline void schedule(struct interrupt_frame *iframe)
 {
-    __context_save(iframe);
+    context_save(iframe);
     task_enqueue(current);
     current = task_dequeue();
-    __next_task_run();
+    next_task_run();
 }
 
 #endif

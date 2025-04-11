@@ -75,7 +75,7 @@ static inline void __rb_change_child(struct rb_node *old, struct rb_node *new, s
 		root->rb_node = new;
 }
 
-static inline struct rb_node *__rb_erase(struct rb_node *node, struct rb_root *root)
+static inline struct rb_node *rb_erase(struct rb_node *node, struct rb_root *root)
 {
 	struct rb_node *child = node->rb_right;
 	struct rb_node *tmp = node->rb_left;
@@ -88,7 +88,7 @@ static inline struct rb_node *__rb_erase(struct rb_node *node, struct rb_root *r
 		 *
 		 * Note that if there is one child it must be red due to 5)
 		 * and node must be black due to 4). We adjust colors locally
-		 * so as to bypass __rb_erase_color() later on.
+		 * so as to bypass rb_erase_color() later on.
 		 */
 		pc = node->__rb_parent_color;
 		parent = __rb_parent(pc);

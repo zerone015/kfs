@@ -22,22 +22,22 @@ struct malloc_chunk {
 #define IS_HEAD             0x2
 #define CHUNK_FLAGS         (IS_HEAD | PREV_INUSE)
 
-#define __chunk_size(p)     ((p)->size & ~CHUNK_FLAGS)
-#define __next_chunk(p)     ((struct malloc_chunk *)(((uint8_t *)(p)) + __chunk_size(p)))
-#define __prev_chunk(p)     ((struct malloc_chunk *)(((uint8_t *)(p)) - ((p)->prev_size)))
-#define __chunk_is_head(p)  ((p)->size & IS_HEAD)
-#define __is_inuse(p)       ((__next_chunk(p))->size & PREV_INUSE)
-#define __prev_is_inuse(p)  ((p)->size & PREV_INUSE)
-#define __next_is_inuse(p)  ((__is_inuse(__next_chunk(p))))
-#define __set_inuse(p)      ((__next_chunk(p))->size |= PREV_INUSE)
-#define __clear_inuse(p)    ((__next_chunk(p))->size &= ~PREV_INUSE)
-#define __request_size(sz)  \
+#define chunk_size(p)     ((p)->size & ~CHUNK_FLAGS)
+#define next_chunk(p)     ((struct malloc_chunk *)(((uint8_t *)(p)) + chunk_size(p)))
+#define prev_chunk(p)     ((struct malloc_chunk *)(((uint8_t *)(p)) - ((p)->prev_size)))
+#define chunk_is_head(p)  ((p)->size & IS_HEAD)
+#define is_inuse(p)       ((next_chunk(p))->size & PREV_INUSE)
+#define prev_is_inuse(p)  ((p)->size & PREV_INUSE)
+#define next_is_inuse(p)  ((is_inuse(next_chunk(p))))
+#define set_inuse(p)      ((next_chunk(p))->size |= PREV_INUSE)
+#define clear_inuse(p)    ((next_chunk(p))->size &= ~PREV_INUSE)
+#define request_size(sz)  \
     (((sz) + SIZE_SZ + MALLOC_ALIGN_MASK < MIN_SIZE) ?               \
     MIN_SIZE :                                                      \
     ((sz) + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
-#define __is_freeable_vb(p) (__chunk_is_head(p) && (__chunk_size(p) + 2*MIN_SIZE) == vb_size(p))
-#define __chunk2mem(p)      ((void *)((uint8_t *)(p) + 2*SIZE_SZ))
-#define __mem2chunk(mem)    ((struct malloc_chunk *)((uint8_t *)(mem) - 2*SIZE_SZ))
+#define is_freeable_vb(p) (chunk_is_head(p) && (chunk_size(p) + 2*MIN_SIZE) == vb_size(p))
+#define chunk2mem(p)      ((void *)((uint8_t *)(p) + 2*SIZE_SZ))
+#define mem2chunk(mem)    ((struct malloc_chunk *)((uint8_t *)(mem) - 2*SIZE_SZ))
 
 void hmm_init(uintptr_t mem);
 void *kmalloc(size_t size);

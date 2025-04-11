@@ -12,7 +12,7 @@
 
 uint16_t *page_ref;
 
-static inline void __page_ref_init(void)
+static inline void page_ref_init(void)
 {
     size_t page_ref_size;
 
@@ -25,10 +25,10 @@ static inline void __page_ref_init(void)
 
 void proc_init(void)
 {
-    __page_ref_init();
+    page_ref_init();
 }
 
-static inline void __cow_prepare_pages(void) 
+static inline void pages_cow_prepare(void) 
 {
     struct mapping_file *cur, *tmp;
     struct rb_root *root;
@@ -66,7 +66,7 @@ static inline void __cow_prepare_pages(void)
     }
 }
 
-static inline uintptr_t __pgdir_clone(void)
+static inline uintptr_t pgdir_clone(void)
 {
     uint32_t *pde, *pte, *pgtab;
     uintptr_t ret;
@@ -88,7 +88,7 @@ static inline uintptr_t __pgdir_clone(void)
     return ret;
 }
 
-static inline void __vblocks_clone(struct user_vblock_tree *vblocks)
+static inline void vblocks_clone(struct user_vblock_tree *vblocks)
 {
     struct user_vblock *cur, *tmp, *new;
     struct rb_root *root;
@@ -103,7 +103,7 @@ static inline void __vblocks_clone(struct user_vblock_tree *vblocks)
     }
 }
 
-static inline void __mapping_files_clone(struct mapping_file_tree *mapping_files)
+static inline void mapping_files_clone(struct mapping_file_tree *mapping_files)
 {
     struct mapping_file *cur, *tmp, *new;
     struct rb_root *root;
@@ -117,13 +117,13 @@ static inline void __mapping_files_clone(struct mapping_file_tree *mapping_files
     }
 }
 
-static inline void __vspace_tree_clone(struct user_vblock_tree *vblocks, struct mapping_file_tree *mapping_files)
+static inline void vspace_manager_clone(struct user_vblock_tree *vblocks, struct mapping_file_tree *mapping_files)
 {
-    __vblocks_clone(vblocks);
-    __mapping_files_clone(mapping_files);
+    vblocks_clone(vblocks);
+    mapping_files_clone(mapping_files);
 }
 
-static inline struct task_struct * __create_child_task(struct interrupt_frame *iframe)
+static inline struct task_struct * create_child_task(struct interrupt_frame *iframe)
 {
     struct task_struct *ts;
 
@@ -143,11 +143,11 @@ static inline struct task_struct * __create_child_task(struct interrupt_frame *i
     ts->context.eip = iframe->eip;
     ts->context.esi = iframe->esi;
     ts->context.esp = iframe->esp;
-    ts->context.cr3 = __pgdir_clone();
+    ts->context.cr3 = pgdir_clone();
     ts->mapping_files.by_base = RB_ROOT;
     ts->vblocks.by_base = RB_ROOT;
     ts->vblocks.by_size = RB_ROOT;
-    __vspace_tree_clone(&ts->vblocks, &ts->mapping_files);
+    vspace_manager_clone(&ts->vblocks, &ts->mapping_files);
     return ts;
 }
 
@@ -155,8 +155,8 @@ int fork(struct syscall_frame *sframe)
 {
     struct task_struct *ts;
 
-    __cow_prepare_pages();
-    ts = __create_child_task(&sframe->iframe);
+    pages_cow_prepare();
+    ts = create_child_task(&sframe->iframe);
     list_add(&ts->child, &current->child_list);
     task_enqueue(ts);
     return ts->pid;

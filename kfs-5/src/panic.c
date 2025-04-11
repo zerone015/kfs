@@ -4,7 +4,7 @@
 #include "paging.h"
 #include <stddef.h>
 
-static inline void __hex_dump(struct panic_info *panic_info)
+static inline void hex_dump(struct panic_info *panic_info)
 {
     uint32_t *esp;
 
@@ -25,12 +25,12 @@ static inline void __hex_dump(struct panic_info *panic_info)
     printk("\n\n");
 }
 
-static inline void __panic_msg_print(const char *msg)
+static inline void panic_msg_print(const char *msg)
 {
     printk("Kernel panic: %s\n", msg);
 }
 
-static inline void __registers_clear(void)
+static inline void registers_clear(void)
 {
     asm volatile (
         "xor %%eax, %%eax\n"
@@ -45,7 +45,7 @@ static inline void __registers_clear(void)
     );
 }
 
-static inline void __system_halt(void)
+static inline void system_halt(void)
 {
     asm volatile (
         "cli\n"
@@ -59,10 +59,10 @@ static inline void __system_halt(void)
 void panic(const char *msg, struct panic_info *panic_info)
 {
     tty_clear();
-    __hex_dump(panic_info);
-    __panic_msg_print(msg);
+    hex_dump(panic_info);
+    panic_msg_print(msg);
     vga_disable_cursor();
-    __registers_clear();
-    __system_halt();
+    registers_clear();
+    system_halt();
     __builtin_unreachable();
 }

@@ -8,24 +8,24 @@
 #include "pid.h"
 #include "proc.h"
 
-static inline void __user_vblock_tree_clear(void)
+static inline void vblock_tree_clear(void)
 {
     struct user_vblock *cur, *tmp;
     struct rb_root *root;
 
     root = &current->vblocks.by_base;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
-        __rb_erase(&cur->by_base, root);
+        rb_erase(&cur->by_base, root);
         kfree(cur);
     }
     root = &current->vblocks.by_size;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_size) {
-        __rb_erase(&cur->by_size, root);
+        rb_erase(&cur->by_size, root);
         kfree(cur);
     }
 }
 
-static inline void __mapping_file_tree_clear(void)
+static inline void mapping_file_tree_clear(void)
 {
     struct mapping_file *cur, *tmp;
     struct rb_root *root;
@@ -52,18 +52,18 @@ static inline void __mapping_file_tree_clear(void)
             size -= PAGE_SIZE;
             base += PAGE_SIZE;
         } while (size);
-        __rb_erase(&cur->by_base, root);
+        rb_erase(&cur->by_base, root);
         kfree(cur);
     }
 }
 
-static inline void __tree_clear(void)
+static inline void vspace_manager_clear(void)
 {
-    __mapping_file_tree_clear();
-    __user_vblock_tree_clear();
+    mapping_file_tree_clear();
+    vblock_tree_clear();
 }
 
-static inline void __page_dir_clear(void)
+static inline void page_dir_clear(void)
 {
     uint32_t *pde;
     uintptr_t pt_addr;
@@ -79,7 +79,7 @@ static inline void __page_dir_clear(void)
     memset32(pde, 0, 768);
 }
 
-static inline void __page_dir_init(void)
+static inline void page_dir_init(void)
 {
     uint32_t *pde, *pte;
     uintptr_t page;
@@ -102,7 +102,7 @@ static inline void __page_dir_init(void)
         pte[pte_idx(USER_STACK_TOP) + 1024*pde_idx(USER_STACK_BASE) - i] = PG_RESERVED | PG_US | PG_RDWR;
 }
 
-static inline void __mapping_file_tree_init(void)
+static inline void mapping_file_tree_init(void)
 {
     struct rb_root *root;
     struct mapping_file *new;
@@ -120,7 +120,7 @@ static inline void __mapping_file_tree_init(void)
     mapping_file_add(new, root);
 }
 
-static inline void __user_vblock_tree_init(void)
+static inline void vblock_tree_init(void)
 {
     struct rb_root *root;
     struct user_vblock *new;
@@ -135,13 +135,13 @@ static inline void __user_vblock_tree_init(void)
     vblock_bysize_add(new, root);
 }
 
-static inline void __tree_init(void)
+static inline void vspace_manager_init(void)
 {
-    __mapping_file_tree_init();
-    __user_vblock_tree_init();
+    mapping_file_tree_init();
+    vblock_tree_init();
 }
 
-static inline void __exec(uintptr_t user_eip) {
+static inline void jmp_entry_point(uintptr_t user_eip) {
     asm volatile (
         "mov %[user_ds], %%ax\n"
         "mov %%ax, %%ds\n"
@@ -165,7 +165,7 @@ static inline void __exec(uintptr_t user_eip) {
     );
 }
 
-static inline void __task_init(struct task_struct *ts)
+static inline void task_init(struct task_struct *ts)
 {
 	ts->pid = alloc_pid();
     ts->time_slice_remaining = 10;
@@ -197,18 +197,18 @@ void init_process(void)
 	ts = kmalloc(sizeof(struct task_struct));
 	if (!ts)
 		do_panic("init process create failed");
-    __task_init(ts);
+    task_init(ts);
     current = ts;
     exec_fn(test_user_code);
 }
 
 void exec_fn(void (*func)())
 {
-    __tree_clear();
-    __page_dir_clear();
-    __tree_init();
-    __page_dir_init();
+    vspace_manager_clear();
+    page_dir_clear();
+    vspace_manager_init();
+    page_dir_init();
     memcpy32((void *)USER_CODE_BASE, func, PAGE_SIZE / 4);
-    __exec(USER_CODE_BASE);
+    jmp_entry_point(USER_CODE_BASE);
     __builtin_unreachable();
 }
