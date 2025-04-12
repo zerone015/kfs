@@ -7,30 +7,25 @@
 static struct list_head vblocks;
 static struct ptr_stack ptr_stack;
 
-static inline void __stack_init(struct ptr_stack *stack)
+static inline bool stack_is_empty(struct ptr_stack *stack)
 {
-	stack->top = -1;
+	return stack->top == -1 ? true : false;
 }
 
-static inline void __stack_push(struct ptr_stack *stack, struct kernel_vblock *node)
+static inline void push_ptr(struct ptr_stack *stack, struct kernel_vblock *node)
 {
 	stack->top++;
 	stack->ptrs[stack->top] = node;
 }
 
-static inline bool __stack_is_empty(struct ptr_stack *stack)
+static inline struct kernel_vblock *pop_ptr(struct ptr_stack *stack)
 {
-	return stack->top == -1 ? true : false;
-}
-
-static inline struct kernel_vblock *__stack_pop(struct ptr_stack *stack)
-{
-	if (__stack_is_empty(stack))
+	if (stack_is_empty(stack))
 		return NULL;
 	return stack->ptrs[stack->top--];
 }
 
-static inline void __vblocks_init(struct kernel_vblock *vblock)
+static inline void vblocks_init(struct kernel_vblock *vblock)
 {
     uint32_t *pde;
 
@@ -45,20 +40,20 @@ static inline void __vblocks_init(struct kernel_vblock *vblock)
     list_add(&vblock->list_head, &vblocks);
 }
 
-static inline void __freenode_stack_init(struct kernel_vblock *vblock)
+static inline void ptr_stack_init(struct kernel_vblock *vblock)
 {
-    __stack_init(&ptr_stack);
+	ptr_stack.top = -1;
     for (size_t i = 1; i < K_VBLOCK_MAX; i++) 
-        __stack_push(&ptr_stack, &vblock[i]);
+        push_ptr(&ptr_stack, &vblock[i]);
 }
 
-static inline void __vb_allocator_init(uintptr_t mem)
+static inline void vb_allocator_init(uintptr_t mem)
 {
-    __vblocks_init((struct kernel_vblock *)mem);
-    __freenode_stack_init((struct kernel_vblock *)mem);
+    vblocks_init((struct kernel_vblock *)mem);
+    ptr_stack_init((struct kernel_vblock *)mem);
 }
 
-static inline void __vb_reserve(uintptr_t v_addr, size_t size)
+static inline void vb_reserve(uintptr_t v_addr, size_t size)
 {
     uint32_t *pde;
     size_t i;
@@ -69,7 +64,7 @@ static inline void __vb_reserve(uintptr_t v_addr, size_t size)
     pde[i] = PG_RESERVED | PG_PS | PG_RDWR;
 }
 
-static inline size_t __vb_size_and_act(uintptr_t addr, bool do_free)
+static inline size_t vb_size_and_act(uintptr_t addr, bool do_free)
 {
     uint32_t *pde;
     size_t size;
@@ -88,17 +83,17 @@ static inline size_t __vb_size_and_act(uintptr_t addr, bool do_free)
     return size;
 }
 
-static inline size_t __vb_size_with_free(uintptr_t addr)
+static inline size_t vb_size_with_free(uintptr_t addr)
 {
-   return __vb_size_and_act(addr, true);
+   return vb_size_and_act(addr, true);
 }
 
-static inline size_t __vb_size_without_free(uintptr_t addr)
+static inline size_t vb_size_without_free(uintptr_t addr)
 {
-   return __vb_size_and_act(addr, false);
+   return vb_size_and_act(addr, false);
 }
 
-static inline void __vb_add_and_merge(uintptr_t addr, size_t size)
+static inline void vb_add_and_merge(uintptr_t addr, size_t size)
 {
     struct kernel_vblock *cur;
     struct kernel_vblock *new;
@@ -107,7 +102,7 @@ static inline void __vb_add_and_merge(uintptr_t addr, size_t size)
         if (addr < cur->base)
             break;
     }
-    new = __stack_pop(&ptr_stack);
+    new = pop_ptr(&ptr_stack);
     new->base = addr;
     new->size = size;
     list_add_tail(&new->list_head, &cur->list_head);
@@ -117,13 +112,13 @@ static inline void __vb_add_and_merge(uintptr_t addr, size_t size)
         new->base = cur->base;
         new->size += cur->size;
         list_del(&cur->list_head);
-        __stack_push(&ptr_stack, cur);
+        push_ptr(&ptr_stack, cur);
     }
     cur = list_next_entry(new, list_head);
     if (!list_entry_is_head(cur, &vblocks, list_head) && new->base + new->size == cur->base) {
         new->size += cur->size;
         list_del(&cur->list_head);
-        __stack_push(&ptr_stack, cur);
+        push_ptr(&ptr_stack, cur);
     }
 }
 
@@ -144,16 +139,16 @@ void vb_free(void *addr)
 {
     size_t size;
 
-    size = __vb_size_with_free((uintptr_t)addr);
-    __vb_add_and_merge((uintptr_t)addr, size);
+    size = vb_size_with_free((uintptr_t)addr);
+    vb_add_and_merge((uintptr_t)addr, size);
 }
 
 void vb_unmap(void *addr)
 {
     size_t size;
 
-    size = __vb_size_without_free((uintptr_t)addr);
-    __vb_add_and_merge((uintptr_t)addr, size);
+    size = vb_size_without_free((uintptr_t)addr);
+    vb_add_and_merge((uintptr_t)addr, size);
 }
 
 void *vb_alloc(size_t size)
@@ -161,15 +156,15 @@ void *vb_alloc(size_t size)
     struct kernel_vblock *cur;
     void *mem;
 
-    mem = VB_ALLOC_FAILED;
+    mem = NULL;
     list_for_each_entry(cur, &vblocks, list_head) {
         if (size <= cur->size) {
             cur->size -= size;
             mem = (void *)(cur->base + cur->size);
-            __vb_reserve((uintptr_t)mem, size);
+            vb_reserve((uintptr_t)mem, size);
             if (!cur->size) {
                 list_del(&cur->list_head);
-                __stack_push(&ptr_stack, cur);
+                push_ptr(&ptr_stack, cur);
             }
             break;
         }
@@ -198,9 +193,9 @@ uintptr_t vmm_init(void)
     uintptr_t mem;
 
     mem = alloc_pages(K_PAGE_SIZE);
-    if (mem == ALLOC_PAGES_FAILED)
+    if (mem == PAGE_NONE)
         do_panic("Not enough memory to initialize the virtual memory manager");
     mem = pages_initmap(mem, K_PAGE_SIZE, PG_GLOBAL | PG_PS | PG_RDWR | PG_PRESENT);
-    __vb_allocator_init(mem);
+    vb_allocator_init(mem);
     return mem + K_VBLOCK_MAX_SIZE;
 }

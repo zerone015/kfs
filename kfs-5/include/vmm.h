@@ -4,12 +4,12 @@
 #include "list.h"
 #include "rbtree.h"
 #include "pmm.h"
+#include "hmm.h"
 #include <stdint.h>
 #include <stdbool.h>
 
 #define K_VBLOCK_MAX    	((K_VSPACE_SIZE / K_PAGE_SIZE / 2) + 1)
 #define K_VBLOCK_MAX_SIZE  	(K_VBLOCK_MAX * sizeof(struct kernel_vblock))
-#define VB_ALLOC_FAILED		((void *)-1)
 
 struct kernel_vblock {
 	uintptr_t base;
@@ -100,6 +100,24 @@ static inline void mapping_file_add(struct mapping_file *new, struct rb_root *ro
     }
     rb_link_node(&new->by_base, parent, cur);
     rb_insert_color(&new->by_base, root);
+}
+
+static inline void vblocks_clear(struct user_vblock_tree *vblocks)
+{
+    struct rb_root *root;
+    struct user_vblock *cur, *tmp;
+
+    root = &vblocks->by_base;
+    rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
+        kfree(cur);
+    }
+    root->rb_node = NULL;
+    
+    root = &vblocks->by_size;
+    rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_size) {
+        kfree(cur);
+    }
+    root->rb_node = NULL;
 }
 
 #endif

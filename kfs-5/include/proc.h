@@ -9,6 +9,7 @@
 extern uint16_t *page_ref;
 
 void proc_init(void);
+void init_process(void) __attribute__((noreturn));
 int fork(struct syscall_frame *sframe);
 
 #endif

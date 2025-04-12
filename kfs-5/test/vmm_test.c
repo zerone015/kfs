@@ -68,7 +68,7 @@ void test_virtual_address_allocator(struct list_head *vblocks)
                 return;
             }
         }
-        if (vb_alloc(K_PAGE_SIZE) != VB_ALLOC_FAILED) {
+        if (vb_alloc(K_PAGE_SIZE)) {
             printk(KERN_ERR "Failed\n");
             return;
         }
@@ -88,7 +88,7 @@ void test_virtual_address_allocator(struct list_head *vblocks)
         uintptr_t tmp;
         size_t size = K_PAGE_SIZE;
 
-        for (i = 0; (addrs[i] = (uintptr_t)vb_alloc(size)) != VB_ALLOC_FAILED; i++) {
+        for (i = 0; (addrs[i] = (uintptr_t)vb_alloc(size)); i++) {
             for (size_t j = 0; j < size / K_PAGE_SIZE; j++) {
                 tmp = addrs[i] + (K_PAGE_SIZE * j);
                 if (!(tmp >= initial_addr && tmp < initial_addr + initial_size && tmp % K_PAGE_SIZE == 0)) {
@@ -126,7 +126,7 @@ void test_virtual_address_allocator(struct list_head *vblocks)
                 vb_free((void *)addrs[j]);
         }
         addrs[0] = (uintptr_t)vb_alloc(initial_size);
-        if (addrs[0] == VB_ALLOC_FAILED) {
+        if (!addrs[0]) {
             printk(KERN_ERR "Failed\n");
             return;
         }

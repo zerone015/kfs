@@ -16,10 +16,10 @@ extern uint64_t ram_size;
 #define K_PLOAD_START		((size_t)(&_kernel_start))
 #define K_PLOAD_END			((size_t)(&_kernel_end))
 #define KERNEL_SIZE			(K_PLOAD_END - K_PLOAD_START)
-#define ALLOC_PAGES_FAILED	((uintptr_t)-1)
+#define PAGE_NONE			((uintptr_t)-1)
 
-#define __block_size(order)					(PAGE_SIZE << (order))
-#define __bitmap_first_size(ram)    		(((((ram) + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8)
+#define block_size(order)		(PAGE_SIZE << (order))
+#define bitmap_first_size(ram)  (((((ram) + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8)
 
 struct buddy_order {
 	uint32_t *bitmap;

@@ -16,7 +16,7 @@ struct syscall_frame {
     struct interrupt_frame iframe;
 };
 
-#define __from_user(cs)     (((cs) & 0x3) == 3)
+#define panic_is_user(cs)     (((cs) & 0x3) == 3)
 
 /* keyboard handler */
 #define PS2CTRL_DATA_PORT	0x60
@@ -35,10 +35,10 @@ struct syscall_frame {
 #define PF_EC_USER                  PG_US
 #define PF_PDE_FLAGS_MASK           0x17FF
 #define PF_PTE_FLAGS_MASK           0x1FF
-#define __is_user(ec)               ((ec) & PF_EC_USER)
-#define __is_reserve(ec, entry)     (!((ec) & PF_EC_PRESENT) && ((entry) & PG_RESERVED))
-#define __make_pde(entry)           (alloc_pages(K_PAGE_SIZE) | (((entry) & PF_PDE_FLAGS_MASK) | PG_PRESENT))
-#define __make_pte(entry)           (alloc_pages(PAGE_SIZE) | (((entry) & PF_PTE_FLAGS_MASK) | PG_PRESENT))
+#define pf_is_user(ec)              ((ec) & PF_EC_USER)
+#define pg_is_reserve(ec, entry)    (!((ec) & PF_EC_PRESENT) && ((entry) & PG_RESERVED))
+#define MAKE_PRESENT_PDE(p)         ((p) = (alloc_pages(K_PAGE_SIZE) | (((p) & PF_PDE_FLAGS_MASK) | PG_PRESENT)))
+#define MAKE_PRESENT_PTE(p)         ((p) = (alloc_pages(PAGE_SIZE) | (((p) & PF_PTE_FLAGS_MASK) | PG_PRESENT)))
 
 void division_error_handler(void);
 void division_error_handle(struct interrupt_frame iframe);

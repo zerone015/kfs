@@ -9,10 +9,11 @@
 #include "exec.h"
 #include "pid.h"
 #include "interrupt.h"
+#include "errno.h"
 
 uint16_t *page_ref;
 
-static inline void __page_ref_init(void)
+static inline void page_ref_init(void)
 {
     size_t page_ref_size;
 
@@ -23,59 +24,146 @@ static inline void __page_ref_init(void)
     memset(page_ref, 0, page_ref_size);
 }
 
-void proc_init(void)
+static void test_user_code(void)
 {
-    __page_ref_init();
+    int ret;
+
+    while (42) {
+        asm volatile (
+            "int $0x80"
+            : "=a"(ret)
+            : "a"(0), "b"("syscall test!!")
+            : "memory"
+        );
+    }
 }
 
-static inline void __cow_prepare_pages(void) 
+void proc_init(void)
+{
+    page_ref_init();
+}
+
+void init_process(void)
+{
+	struct task_struct *task;
+
+	task = kmalloc(sizeof(struct task_struct));
+	if (!task)
+		do_panic("init process create failed");
+
+    task->pid = alloc_pid();
+    if (task->pid == PID_NONE)
+		do_panic("init process create failed");
+
+    task->parent = NULL;
+    task->time_slice_remaining = DEFAULT_TIMESLICE;
+	task->vblocks.by_base = RB_ROOT;
+	task->vblocks.by_size = RB_ROOT;
+	task->mapping_files.by_base = RB_ROOT;
+	init_list_head(&task->child_list);
+
+    current = task;
+
+    exec_fn(test_user_code);
+}
+
+static inline void mapping_files_clear_only_node(struct mapping_file_tree *mapping_files)
 {
     struct mapping_file *cur, *tmp;
     struct rb_root *root;
-    uintptr_t base;
+
+    root = &mapping_files->by_base;
+    rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
+        kfree(cur);
+    }
+}
+
+static inline void entries_clean(void)
+{
+    struct mapping_file *cur, *tmp;
+    struct rb_root *root;
     size_t size, pfn;
     uint32_t *pte;
     
     root = &current->mapping_files.by_base;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
-        base = cur->base;
         size = cur->size;
-        pte = (uint32_t *)pte_from_addr(base);
-        if (base == USER_CODE_BASE) {
-            do {
-                *pte = (*pte | PG_COW_RDONLY);
-                pte++;
-                size -= PAGE_SIZE;
-            } while (size);
-        }
-        else {
-            do {
-                pfn = pfn_from_pte(*pte);
-                if (is_rdwr_cow(*pte)) {
-                    page_ref[pfn]++;
-                } else if (page_is_present(*pte)) {
-                    *pte = (*pte | PG_COW_RDWR) & ~PG_RDWR;
-                    tlb_flush(base);
-                    page_ref[pfn] = 2;
+        pte = (uint32_t *)pte_from_addr(cur->base);
+        do {
+            pfn = pfn_from_pte(*pte);
+            if (is_cow(*pte)) {
+                if (page_ref[pfn] == 2) {
+                    page_ref[pfn] = 0;
+                    *pte = *pte & ~(PG_COW_RDONLY | PG_COW_RDWR);
+                    if (!is_code_section(addr_from_pte(pte)))
+                        *pte |= PG_RDWR;
                 }
-                pte++;
-                size -= PAGE_SIZE;
-                base += PAGE_SIZE;
-            } while (size);
-        }
+                else {
+                    page_ref[pfn]--;
+                }
+            }
+            pte++;
+            size -= PAGE_SIZE;
+        } while (size);
     }
 }
 
-static inline uintptr_t __pgdir_clone(void)
+static inline void entries_set_cow(void) 
+{
+    struct mapping_file *cur, *tmp;
+    struct rb_root *root;
+    size_t size, pfn;
+    uint32_t *pte;
+    
+    root = &current->mapping_files.by_base;
+    rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
+        size = cur->size;
+        pte = (uint32_t *)pte_from_addr(cur->base);
+        do {
+            pfn = pfn_from_pte(*pte);
+            if (is_cow(*pte)) {
+                page_ref[pfn]++;
+            } 
+            else if (page_is_present(*pte)) {
+                if (is_code_section(addr_from_pte(pte))) {
+                    *pte |= PG_COW_RDONLY;
+                }
+                else {
+                    *pte = (*pte | PG_COW_RDWR) & ~PG_RDWR;
+                    tlb_flush(addr_from_pte(pte));
+                }
+                page_ref[pfn] = 2;
+            }
+            pte++;
+            size -= PAGE_SIZE;
+        } while (size);
+    }
+}
+
+static inline void pgdir_clean(uint32_t *pde, size_t len)
+{
+    for (size_t i = 0; i < len; i++) {
+        if (pde[i])
+            free_pages(page_from_pde_4kb(pde[i]), PAGE_SIZE);
+    }
+    vb_unmap(pde);
+}
+
+static inline uintptr_t pgdir_clone(void)
 {
     uint32_t *pde, *pte, *pgtab;
-    uintptr_t ret;
+    uintptr_t pde_page;
+    size_t i;
 
     pde = (uint32_t *)vb_alloc(PAGE_SIZE);
+    if (!pde)
+        goto out;
     memcpy32(pde, (void *)PAGE_DIR, PAGE_SIZE / 4);
-    for (size_t i = 0; i < 768; i++) {
+    for (i = 0; i < 768; i++) {
         if (pde[i]) {
             pgtab = (uint32_t *)vb_alloc(PAGE_SIZE);
+            if (!pgtab) 
+                goto out_clean_pgdir;
             memcpy32(pgtab, (void *)(PAGE_TAB + i*PAGE_SIZE), PAGE_SIZE / 4);
             pte = (uint32_t *)pte_from_addr(pgtab);
             pde[i] = page_from_pte(*pte) | flags_from_entry(pde[i]);
@@ -83,12 +171,18 @@ static inline uintptr_t __pgdir_clone(void)
         }
     }
     pte = (uint32_t *)pte_from_addr(pde);
-    ret = page_from_pte(*pte);
+    pde_page = page_from_pte(*pte);
+    pde[1023] = pde_page | flags_from_entry(pde[1023]);
     vb_unmap(pde);
-    return ret;
+    return pde_page;
+
+out_clean_pgdir:
+    pgdir_clean(pde, i);
+out:
+    return PAGE_NONE;
 }
 
-static inline void __vblocks_clone(struct user_vblock_tree *vblocks)
+static inline int vblocks_clone(struct user_vblock_tree *vblocks)
 {
     struct user_vblock *cur, *tmp, *new;
     struct rb_root *root;
@@ -96,14 +190,17 @@ static inline void __vblocks_clone(struct user_vblock_tree *vblocks)
     root = &current->vblocks.by_base;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
         new = kmalloc(sizeof(struct user_vblock));
+        if (!new)
+            return -1;
         new->base = cur->base;
         new->size = cur->size;
         vblock_bybase_add(new, &vblocks->by_base);
         vblock_bysize_add(new, &vblocks->by_size);
     }
+    return 0;
 }
 
-static inline void __mapping_files_clone(struct mapping_file_tree *mapping_files)
+static inline int mapping_files_clone(struct mapping_file_tree *mapping_files)
 {
     struct mapping_file *cur, *tmp, *new;
     struct rb_root *root;
@@ -111,53 +208,87 @@ static inline void __mapping_files_clone(struct mapping_file_tree *mapping_files
     root = &current->mapping_files.by_base;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
         new = kmalloc(sizeof(struct mapping_file));
+        if (!new)
+            return -1;
         new->base = cur->base;
         new->size = cur->size;
         mapping_file_add(new, &mapping_files->by_base);
     }
+    return 0;
 }
 
-static inline void __vspace_tree_clone(struct user_vblock_tree *vblocks, struct mapping_file_tree *mapping_files)
+static inline int create_task(struct interrupt_frame *iframe, struct task_struct **out_task)
 {
-    __vblocks_clone(vblocks);
-    __mapping_files_clone(mapping_files);
-}
+    struct task_struct *task;
+    int ret = -ENOMEM;
 
-static inline struct task_struct * __create_child_task(struct interrupt_frame *iframe)
-{
-    struct task_struct *ts;
+    task = kmalloc(sizeof(struct task_struct));
+    if (!task)
+        goto out;
 
-    ts = kmalloc(sizeof(struct task_struct));
-    ts->pid = alloc_pid();
-    ts->time_slice_remaining = 10;
-    ts->parent = current;
-    ts->state = PROCESS_READY;
-    init_list_head(&ts->child_list);
-    ts->context.eax = 0;
-    ts->context.ebp = iframe->ebp;
-    ts->context.ebx = iframe->ebx;
-    ts->context.ecx = iframe->ecx;
-    ts->context.edi = iframe->edi;
-    ts->context.edx = iframe->edx;
-    ts->context.eflags = iframe->eflags;
-    ts->context.eip = iframe->eip;
-    ts->context.esi = iframe->esi;
-    ts->context.esp = iframe->esp;
-    ts->context.cr3 = __pgdir_clone();
-    ts->mapping_files.by_base = RB_ROOT;
-    ts->vblocks.by_base = RB_ROOT;
-    ts->vblocks.by_size = RB_ROOT;
-    __vspace_tree_clone(&ts->vblocks, &ts->mapping_files);
-    return ts;
+    task->pid = alloc_pid();
+    if (task->pid == PID_NONE) {
+        ret = -EAGAIN;
+        goto out_clean_task;
+    }
+    
+    task->vblocks.by_base = RB_ROOT;
+    task->vblocks.by_size = RB_ROOT;
+    if (vblocks_clone(&task->vblocks) < 0)
+        goto out_clean_pid;
+    
+    task->mapping_files.by_base = RB_ROOT;
+    if (mapping_files_clone(&task->mapping_files) < 0)
+        goto out_clean_vblocks;
+
+    entries_set_cow();
+    task->cr3 = pgdir_clone();
+    if (task->cr3 == PAGE_NONE)
+        goto out_clean_mapping_files;
+    
+    task->time_slice_remaining = DEFAULT_TIMESLICE;
+    task->parent = current;
+    task->state = PROCESS_READY;
+
+    task->cpu_context = (struct cpu_context) {
+        .eax = 0,
+        .ebp = iframe->ebp,
+        .ebx = iframe->ebx,
+        .ecx = iframe->ecx,
+        .edi = iframe->edi,
+        .edx = iframe->edx,
+        .esi = iframe->esi,
+        .esp = iframe->esp,
+        .eip = iframe->eip,
+        .eflags = iframe->eflags,
+    };
+    init_list_head(&task->child_list);
+
+    *out_task = task;
+    return 0;
+
+out_clean_mapping_files:
+    mapping_files_clear_only_node(&task->mapping_files);
+    entries_clean();
+out_clean_vblocks:
+    vblocks_clear(&task->vblocks);
+out_clean_pid:
+    free_pid(task->pid);
+out_clean_task:
+    kfree(task);
+out:
+    return ret;
 }
 
 int fork(struct syscall_frame *sframe)
 {
-    struct task_struct *ts;
+    struct task_struct *task;
+    int ret;
 
-    __cow_prepare_pages();
-    ts = __create_child_task(&sframe->iframe);
-    list_add(&ts->child, &current->child_list);
-    task_enqueue(ts);
-    return ts->pid;
+    ret = create_task(&sframe->iframe, &task);
+    if (ret < 0)
+        return ret;
+    list_add(&task->child, &current->child_list);
+    ready_queue_enqueue(task);
+    return task->pid;
 }
