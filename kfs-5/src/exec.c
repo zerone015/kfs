@@ -8,59 +8,13 @@
 #include "pid.h"
 #include "proc.h"
 
-static inline void mapping_files_clear(struct mapping_file_tree *mapping_files)
-{
-    struct mapping_file *cur, *tmp;
-    struct rb_root *root;
-    uint32_t *pte;
-    size_t size, pfn;
-
-    root = &mapping_files->by_base;
-    rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
-        size = cur->size;
-        pte = (uint32_t *)pte_from_addr(cur->base);
-        do {
-            if (is_cow(*pte)) {
-                pfn = pfn_from_pte(*pte);
-                if (page_ref[pfn] == 1)
-                    free_pages(page_from_pfn(pfn), PAGE_SIZE);
-                page_ref[pfn]--;
-            } 
-            else if (page_is_present(*pte)) {
-                free_pages(page_from_pte(*pte), PAGE_SIZE);
-            }
-            tlb_flush(addr_from_pte(pte));
-            pte++;
-            size -= PAGE_SIZE;
-        } while (size);
-        kfree(cur);
-    }
-    root->rb_node = NULL;
-}
-
 static inline void vspace_clear(void)
 {
     vblocks_clear(&current->vblocks);
-    mapping_files_clear(&current->mapping_files);
+    mapping_files_clear(&current->mapping_files, true, true);
 }
 
-static inline void page_dir_clear(void)
-{
-    uint32_t *pde;
-    uintptr_t pgtab;
-
-    pde = (uint32_t *)PAGE_DIR;
-    for (size_t i = 0; i < 768; i++) {
-        if (pde[i]) {
-            free_pages(page_from_pde_4kb(pde[i]), PAGE_SIZE);
-            pgtab = PAGE_TAB + (i*PAGE_SIZE);
-            tlb_flush(pgtab);
-        }
-    }
-    memset32(pde, 0, 768);
-}
-
-static inline void page_dir_init(void)
+static inline void pgdir_init(void)
 {
     uint32_t *pde, *pte;
 
@@ -145,9 +99,9 @@ static inline void jmp_entry_point(uintptr_t user_eip) {
 void exec_fn(void (*func)())
 {
     vspace_clear();
-    page_dir_clear();
+    pgdir_clear(true);
     vspace_init();
-    page_dir_init();
+    pgdir_init();
     memcpy32((void *)USER_CODE_BASE, func, PAGE_SIZE / 4);
     jmp_entry_point(USER_CODE_BASE);
     __builtin_unreachable();

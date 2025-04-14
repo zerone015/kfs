@@ -21,6 +21,7 @@ enum process_state {
     PROCESS_WAITING,
     PROCESS_STOPPED,
     PROCESS_ZOMBIE,
+    PROCESS_WAITING_EXIT_CHILD,
 };
 
 struct cpu_context {
@@ -33,9 +34,10 @@ struct task_struct {
     int state;
     size_t time_slice_remaining;
     size_t cr3;
+    int exit_status;
     struct cpu_context cpu_context;
     struct task_struct *parent; 
-    struct list_head child_list;
+    struct list_head children;
     struct list_head child;
     struct list_head ready;
     struct user_vblock_tree vblocks;

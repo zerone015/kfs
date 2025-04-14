@@ -60,22 +60,32 @@ void init_process(void)
 	task->vblocks.by_base = RB_ROOT;
 	task->vblocks.by_size = RB_ROOT;
 	task->mapping_files.by_base = RB_ROOT;
-	init_list_head(&task->child_list);
+	init_list_head(&task->children);
     
     pid_table[task->pid] = task;
     current = task;
-
+    
     exec_fn(test_user_code);
 }
 
-static inline void mapping_files_clear_only_node(struct mapping_file_tree *mapping_files)
+static inline void yield_and_die(void)
 {
-    struct mapping_file *cur, *tmp;
-    struct rb_root *root;
+    current = ready_queue_dequeue();
+    task_run(current);
+}
 
-    root = &mapping_files->by_base;
-    rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
-        kfree(cur);
+static inline void forget_original_parent(struct task_struct *current)
+{
+    current->parent = pid_table[INIT_PROCESS_PID];
+    list_add(&current->child, &pid_table[INIT_PROCESS_PID]->children);
+}
+
+static inline void reparent_children(struct task_struct *parent)
+{
+    struct task_struct *cur;
+
+    list_for_each_entry(cur, &parent->children, child) {
+        forget_original_parent(cur);
     }
 }
 
@@ -263,13 +273,13 @@ static inline int create_task(struct interrupt_frame *iframe, struct task_struct
         .eip = iframe->eip,
         .eflags = iframe->eflags,
     };
-    init_list_head(&task->child_list);
+    init_list_head(&task->children);
 
     *out_task = task;
     return 0;
 
 out_clean_mapping_files:
-    mapping_files_clear_only_node(&task->mapping_files);
+    mapping_files_clear(&task->mapping_files, false, false);
     entries_clean();
 out_clean_vblocks:
     vblocks_clear(&task->vblocks);
@@ -290,7 +300,27 @@ int fork(struct syscall_frame *sframe)
     if (ret < 0)
         return ret;
     pid_table[task->pid] = task;
-    list_add(&task->child, &current->child_list);
+    list_add(&task->child, &current->children);
     ready_queue_enqueue(task);
     return task->pid;
 }
+
+void exit(int status)
+{
+    vblocks_clear(&current->vblocks);
+    mapping_files_clear(&current->mapping_files, true, false);
+    pgdir_clear(false);
+    current->state = PROCESS_ZOMBIE;
+    current->exit_status = status;
+    reparent_children(current);
+    // TODO: 여기서 SIGCHLD 보내면 됨.
+    // TODO: 그리고, 내 자식들중에 좀비가 있는 경우 여기서 wait을 호출할지 init 프로세스에 연결하고 거기서 폴링하게 할지 결정해야함.
+    if (current->parent->state == PROCESS_WAITING_EXIT_CHILD) {
+        current->parent->state = PROCESS_READY;
+        ready_queue_enqueue(current->parent);
+    }
+    yield_and_die();
+    __builtin_unreachable();
+    // TODO: wait에서 cr3, pid, task_struct 해제하면 됨. pid_table[pid] = NULL 도 해줘야함.
+}
+

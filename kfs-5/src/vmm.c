@@ -64,7 +64,7 @@ static inline void vb_reserve(uintptr_t v_addr, size_t size)
     pde[i] = PG_RESERVED | PG_PS | PG_RDWR;
 }
 
-static inline size_t vb_size_and_act(uintptr_t addr, bool do_free)
+static inline __attribute__((always_inline)) size_t vb_size_and_act(uintptr_t addr, bool do_free)
 {
     uint32_t *pde;
     size_t size;

@@ -5,6 +5,7 @@
 #include "rbtree.h"
 #include "pmm.h"
 #include "hmm.h"
+#include "proc.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -118,6 +119,58 @@ static inline void vblocks_clear(struct user_vblock_tree *vblocks)
         kfree(cur);
     }
     root->rb_node = NULL;
+}
+
+static inline __attribute__((always_inline)) void mapping_files_clear(struct mapping_file_tree *mapping_files, bool do_mapping_free, bool do_tlb_flush)
+{
+    struct mapping_file *cur, *tmp;
+    struct rb_root *root;
+    uint32_t *pte;
+    size_t size, pfn;
+
+    root = &mapping_files->by_base;
+    rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
+        if (do_mapping_free) {
+            size = cur->size;
+            pte = (uint32_t *)pte_from_addr(cur->base);
+            do {
+                if (is_cow(*pte)) {
+                    pfn = pfn_from_pte(*pte);
+                    if (page_ref[pfn] == 1)
+                        free_pages(page_from_pfn(pfn), PAGE_SIZE);
+                    page_ref[pfn]--;
+                } 
+                else if (page_is_present(*pte)) {
+                    free_pages(page_from_pte(*pte), PAGE_SIZE);
+                }
+                if (do_tlb_flush)
+                    tlb_flush(addr_from_pte(pte));
+                pte++;
+                size -= PAGE_SIZE;
+            } while (size);
+        }
+        kfree(cur);
+    }
+    root->rb_node = NULL;
+}
+
+static inline __attribute__((always_inline)) void pgdir_clear(bool do_recycle)
+{
+    uint32_t *pde;
+    uintptr_t pgtab;
+
+    pde = (uint32_t *)PAGE_DIR;
+    for (size_t i = 0; i < 768; i++) {
+        if (pde[i]) {
+            free_pages(page_from_pde_4kb(pde[i]), PAGE_SIZE);
+            if (do_recycle) {
+                pgtab = PAGE_TAB + (i*PAGE_SIZE);
+                tlb_flush(pgtab);
+            }
+        }
+    }
+    if (do_recycle)
+        memset32(pde, 0, 768);
 }
 
 #endif

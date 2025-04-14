@@ -55,14 +55,6 @@
 #define is_kernel_space(addr)       ((uintptr_t)(addr) >= K_VSPACE_START)
 #define page_is_present(entry)      ((entry) & PG_PRESENT)
 
-static inline void tlb_flush_all(void) 
-{
-    uint32_t cr3;
-
-    asm volatile ("mov %%cr3, %0" : "=r" (cr3) :: "memory");
-    asm volatile ("mov %0, %%cr3" :: "r" (cr3) : "memory");
-}
-
 static inline void tlb_flush(uintptr_t addr) 
 {
     asm volatile ("invlpg (%0)" :: "r" (addr) : "memory");
