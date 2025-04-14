@@ -2,8 +2,9 @@
 #include "hmm.h"
 #include "panic.h"
 
-struct list_head ready_queue;
 struct task_struct *current;
+struct task_struct *pid_table[PID_TABLE_MAX];
+struct list_head ready_queue;
 
 static inline void ready_queue_init(void)
 {

@@ -5,11 +5,14 @@
 #include "vmm.h"
 #include "interrupt.h"
 #include "gdt.h"
+#include "pid.h"
 
-#define DEFAULT_TIMESLICE 10
+#define DEFAULT_TIMESLICE   10
+#define PID_TABLE_MAX       PID_MAX
 
 extern struct task_struct *current;
 extern struct list_head ready_queue;
+extern struct task_struct *pid_table[PID_TABLE_MAX];
 
 enum process_state {
     PROCESS_NEW,

@@ -61,7 +61,8 @@ void init_process(void)
 	task->vblocks.by_size = RB_ROOT;
 	task->mapping_files.by_base = RB_ROOT;
 	init_list_head(&task->child_list);
-
+    
+    pid_table[task->pid] = task;
     current = task;
 
     exec_fn(test_user_code);
@@ -288,6 +289,7 @@ int fork(struct syscall_frame *sframe)
     ret = create_task(&sframe->iframe, &task);
     if (ret < 0)
         return ret;
+    pid_table[task->pid] = task;
     list_add(&task->child, &current->child_list);
     ready_queue_enqueue(task);
     return task->pid;
