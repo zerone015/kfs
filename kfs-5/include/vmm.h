@@ -8,42 +8,7 @@
 #include "proc.h"
 #include <stdint.h>
 #include <stdbool.h>
-
-#define K_VBLOCK_MAX    	((K_VSPACE_SIZE / K_PAGE_SIZE / 2) + 1)
-#define K_VBLOCK_MAX_SIZE  	(K_VBLOCK_MAX * sizeof(struct kernel_vblock))
-
-struct kernel_vblock {
-	uintptr_t base;
-	size_t size;
-	struct list_head list_head;
-};
-
-struct ptr_stack {
-	struct kernel_vblock *ptrs[K_VBLOCK_MAX];
-	int top;
-};
-
-struct user_vblock {
-	struct rb_node by_base;
-	struct rb_node by_size;
-	uintptr_t base;
-	size_t size;
-};
-
-struct mapping_file {
-	struct rb_node by_base;
-	uintptr_t base;
-	size_t size;
-};
-
-struct user_vblock_tree {
-	struct rb_root by_base;
-	struct rb_root by_size;
-};
-
-struct mapping_file_tree {
-	struct rb_root by_base;
-};
+#include "vmm_types.h"
 
 uintptr_t vmm_init(void);
 uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
@@ -103,7 +68,7 @@ static inline void mapping_file_add(struct mapping_file *new, struct rb_root *ro
     rb_insert_color(&new->by_base, root);
 }
 
-static inline void vblocks_clear(struct user_vblock_tree *vblocks)
+static inline void vblocks_clean(struct user_vblock_tree *vblocks)
 {
     struct rb_root *root;
     struct user_vblock *cur, *tmp;
@@ -121,7 +86,7 @@ static inline void vblocks_clear(struct user_vblock_tree *vblocks)
     root->rb_node = NULL;
 }
 
-static inline __attribute__((always_inline)) void mapping_files_clear(struct mapping_file_tree *mapping_files, bool do_mapping_free, bool do_tlb_flush)
+static inline __attribute__((always_inline)) void mapping_files_clean(struct mapping_file_tree *mapping_files, bool do_mapping_free, bool do_tlb_flush)
 {
     struct mapping_file *cur, *tmp;
     struct rb_root *root;
@@ -154,7 +119,7 @@ static inline __attribute__((always_inline)) void mapping_files_clear(struct map
     root->rb_node = NULL;
 }
 
-static inline __attribute__((always_inline)) void pgdir_clear(bool do_recycle)
+static inline __attribute__((always_inline)) void pgdir_clean(bool do_recycle)
 {
     uint32_t *pde;
     uintptr_t pgtab;

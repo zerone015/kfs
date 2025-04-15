@@ -11,8 +11,6 @@
 #define K_PDE_START         0xFFFFFC00
 #define K_PDE_END           0xFFFFFFFF
 
-#define U_VSPACE_START      PAGE_SIZE
-#define U_VSPACE_SIZE       0xC0000000
 #define K_VSPACE_START		0xC0000000
 #define K_VSPACE_END		0xFFFFFFFF
 #define K_VSPACE_SIZE		0x40000000
@@ -57,7 +55,7 @@
 
 static inline void tlb_flush(uintptr_t addr) 
 {
-    asm volatile ("invlpg (%0)" :: "r" (addr) : "memory");
+    __asm__ volatile ("invlpg (%0)" :: "r" (addr) : "memory");
 }
 
 #endif

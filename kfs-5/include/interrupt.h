@@ -11,11 +11,6 @@ struct interrupt_frame {
     uint32_t esp, ss;
 };
 
-struct syscall_frame {
-    uint32_t es, ds;
-    struct interrupt_frame iframe;
-};
-
 #define panic_is_user(cs)     (((cs) & 0x3) == 3)
 
 /* keyboard handler */
@@ -89,6 +84,6 @@ void pit_handle(struct interrupt_frame iframe);
 void keyboard_handler(void);
 void keyboard_handle(void);
 int syscall_handler(void);
-int syscall_handle(struct syscall_frame sframe);
+int syscall_handle(struct interrupt_frame iframe);
 
 #endif

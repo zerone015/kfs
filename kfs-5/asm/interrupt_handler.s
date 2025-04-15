@@ -169,14 +169,13 @@ keyboard_handler:
 syscall_handler:
 	push 0
 	pushad
-    push ds
-    push es
     mov ax, 0x10
     mov ds, ax
     mov es, ax
     call syscall_handle
-    pop es
-    pop ds
+	mov ax, 0x23
+	mov ds, ax
+	mov es, ax
     popad
 	add esp, 4
     iretd

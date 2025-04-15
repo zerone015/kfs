@@ -6,7 +6,7 @@ static struct idt_entry idt[IDT_SIZE];
 
 static inline void idt_load(struct idt_ptr *idt_ptr)
 {
-	asm volatile (
+	__asm__ volatile (
         "lidt (%0)"
         :
         : "r"(idt_ptr)

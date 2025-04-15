@@ -29,7 +29,7 @@ static void test_user_code(void)
     int ret;
 
     while (42) {
-        asm volatile (
+        __asm__ volatile (
             "int $0x80"
             : "=a"(ret)
             : "a"(0), "b"("syscall test!!")
@@ -43,7 +43,7 @@ void proc_init(void)
     page_ref_init();
 }
 
-void init_process(void)
+void __attribute__((noreturn)) init_process(void)
 {
 	struct task_struct *task;
 
@@ -68,12 +68,6 @@ void init_process(void)
     exec_fn(test_user_code);
 }
 
-static inline void yield_and_die(void)
-{
-    current = ready_queue_dequeue();
-    task_run(current);
-}
-
 static inline void forget_original_parent(struct task_struct *current)
 {
     current->parent = pid_table[INIT_PROCESS_PID];
@@ -89,7 +83,7 @@ static inline void reparent_children(struct task_struct *parent)
     }
 }
 
-static inline void entries_clean(void)
+static inline void entries_clear(void)
 {
     struct mapping_file *cur, *tmp;
     struct rb_root *root;
@@ -151,7 +145,7 @@ static inline void entries_set_cow(void)
     }
 }
 
-static inline void pgdir_clean(uint32_t *pde, size_t len)
+static inline void __pgdir_clean(uint32_t *pde, size_t len)
 {
     for (size_t i = 0; i < len; i++) {
         if (pde[i])
@@ -188,7 +182,7 @@ static inline uintptr_t pgdir_clone(void)
     return pde_page;
 
 out_clean_pgdir:
-    pgdir_clean(pde, i);
+    __pgdir_clean(pde, i);
 out:
     return PAGE_NONE;
 }
@@ -242,11 +236,16 @@ static inline int create_task(struct interrupt_frame *iframe, struct task_struct
         ret = -EAGAIN;
         goto out_clean_task;
     }
+
+    task->esp0 = (uint32_t)kmalloc(KERNEL_STACK_SIZE);
+    if (!task->esp0)
+        goto out_clean_pid;
+    task->esp0 += KERNEL_STACK_SIZE;
     
     task->vblocks.by_base = RB_ROOT;
     task->vblocks.by_size = RB_ROOT;
     if (vblocks_clone(&task->vblocks) < 0)
-        goto out_clean_pid;
+        goto out_clean_kstack;
     
     task->mapping_files.by_base = RB_ROOT;
     if (mapping_files_clone(&task->mapping_files) < 0)
@@ -279,10 +278,12 @@ static inline int create_task(struct interrupt_frame *iframe, struct task_struct
     return 0;
 
 out_clean_mapping_files:
-    mapping_files_clear(&task->mapping_files, false, false);
-    entries_clean();
+    mapping_files_clean(&task->mapping_files, false, false);
+    entries_clear();
 out_clean_vblocks:
-    vblocks_clear(&task->vblocks);
+    vblocks_clean(&task->vblocks);
+out_clean_kstack:
+    kthread_stack_free(task);
 out_clean_pid:
     free_pid(task->pid);
 out_clean_task:
@@ -291,12 +292,12 @@ out:
     return ret;
 }
 
-int fork(struct syscall_frame *sframe)
+int fork(struct interrupt_frame *iframe)
 {
     struct task_struct *task;
     int ret;
 
-    ret = create_task(&sframe->iframe, &task);
+    ret = create_task(iframe, &task);
     if (ret < 0)
         return ret;
     pid_table[task->pid] = task;
@@ -305,13 +306,14 @@ int fork(struct syscall_frame *sframe)
     return task->pid;
 }
 
-void exit(int status)
+void __attribute__((noreturn)) exit(int status)
 {
-    vblocks_clear(&current->vblocks);
-    mapping_files_clear(&current->mapping_files, true, false);
-    pgdir_clear(false);
+    vblocks_clean(&current->vblocks);
+    mapping_files_clean(&current->mapping_files, true, false);
+    pgdir_clean(false);
+    kthread_stack_free(current);
     current->state = PROCESS_ZOMBIE;
-    current->exit_status = status;
+    current->exit_status = (status & 0xFF) << 8;
     reparent_children(current);
     // TODO: 여기서 SIGCHLD 보내면 됨.
     // TODO: 그리고, 내 자식들중에 좀비가 있는 경우 여기서 wait을 호출할지 init 프로세스에 연결하고 거기서 폴링하게 할지 결정해야함.
@@ -319,8 +321,38 @@ void exit(int status)
         current->parent->state = PROCESS_READY;
         ready_queue_enqueue(current->parent);
     }
-    yield_and_die();
-    __builtin_unreachable();
-    // TODO: wait에서 cr3, pid, task_struct 해제하면 됨. pid_table[pid] = NULL 도 해줘야함.
+    current = ready_queue_dequeue();
+    task_run(current);
 }
 
+int wait(int *status)
+{
+    struct task_struct *cur;
+    int ret = -ECHILD;
+
+    if (list_empty(&current->children))
+        goto out;
+    list_for_each_entry(cur, &current->children, child) {
+        if (cur->state == PROCESS_ZOMBIE)
+            goto out_clean_child;
+    }
+    current->state = PROCESS_WAITING_EXIT_CHILD;
+    yield();
+    // if signal
+    // ret = -EINTR
+    // goto out;
+    list_for_each_entry(cur, &current->children, child) {
+        if (cur->state == PROCESS_ZOMBIE)
+            goto out_clean_child;
+    }
+out_clean_child:
+    free_pages(cur->cr3, PAGE_SIZE);
+    free_pid(cur->pid);
+    list_del(&cur->child);
+    pid_table[cur->pid] = NULL;
+    *status = cur->exit_status;
+    ret = cur->pid;
+    kfree(cur);
+out:
+    return ret;
+}

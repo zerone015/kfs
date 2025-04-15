@@ -32,7 +32,7 @@ static inline void panic_msg_print(const char *msg)
 
 static inline void registers_clear(void)
 {
-    asm volatile (
+    __asm__ volatile (
         "xor %%eax, %%eax\n"
         "xor %%ebx, %%ebx\n"
         "xor %%ecx, %%ecx\n"
@@ -47,7 +47,7 @@ static inline void registers_clear(void)
 
 static inline void system_halt(void)
 {
-    asm volatile (
+    __asm__ volatile (
         "cli\n"
         "1:\n"
         "hlt\n"
@@ -56,7 +56,7 @@ static inline void system_halt(void)
     );
 }
 
-void panic(const char *msg, struct panic_info *panic_info)
+void __attribute__((noreturn)) panic(const char *msg, struct panic_info *panic_info)
 {
     tty_clear();
     hex_dump(panic_info);
@@ -65,4 +65,17 @@ void panic(const char *msg, struct panic_info *panic_info)
     registers_clear();
     system_halt();
     __builtin_unreachable();
+}
+
+void __attribute__((naked, noreturn)) do_panic(__attribute__((unused)) const char *msg)
+{
+    __asm__ volatile (
+        "pushfl\n\t"
+        "pushl 4(%esp)\n\t"
+        "pushal\n\t"
+        "addl $16, 12(%esp)\n\t"
+        "pushl %esp\n\t"
+        "pushl 48(%esp)\n\t"
+        "call panic\n\t"
+    );
 }

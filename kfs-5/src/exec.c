@@ -8,10 +8,10 @@
 #include "pid.h"
 #include "proc.h"
 
-static inline void vspace_clear(void)
+static inline void vspace_clean(void)
 {
-    vblocks_clear(&current->vblocks);
-    mapping_files_clear(&current->mapping_files, true, true);
+    vblocks_clean(&current->vblocks);
+    mapping_files_clean(&current->mapping_files, true, true);
 }
 
 static inline void pgdir_init(void)
@@ -73,7 +73,7 @@ static inline void vspace_init(void)
 }
 
 static inline void jmp_entry_point(uintptr_t user_eip) {
-    asm volatile (
+    __asm__ volatile (
         "mov %[user_ds], %%ax\n"
         "mov %%ax, %%ds\n"
         "mov %%ax, %%es\n"
@@ -96,10 +96,10 @@ static inline void jmp_entry_point(uintptr_t user_eip) {
     );
 }
 
-void exec_fn(void (*func)())
+void __attribute__((noreturn)) exec_fn(void (*func)())
 {
-    vspace_clear();
-    pgdir_clear(true);
+    vspace_clean();
+    pgdir_clean(true);
     vspace_init();
     pgdir_init();
     memcpy32((void *)USER_CODE_BASE, func, PAGE_SIZE / 4);

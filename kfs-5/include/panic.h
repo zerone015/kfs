@@ -11,7 +11,7 @@ struct panic_info {
     uint32_t eip, eflags;  
 };
 
-void panic(const char *msg, struct panic_info *panic_info) __attribute__((noreturn));
-void do_panic(const char *msg) __attribute__((noreturn));
+void __attribute__((noreturn)) panic(const char *msg, struct panic_info *panic_info);
+void __attribute__((naked, noreturn)) do_panic(const char *msg);
 
 #endif

@@ -100,7 +100,6 @@ static __attribute__((noreturn)) void panic_handle(const char *msg, struct inter
         panic_info.esp = iframe->_esp_dummy + (offsetof(struct interrupt_frame, eflags) \
                      - offsetof(struct interrupt_frame, eax));
     panic(msg, &panic_info);
-    __builtin_unreachable();
 }
 
 void division_error_handle(struct interrupt_frame iframe)
@@ -208,7 +207,7 @@ void page_fault_handle(struct interrupt_frame iframe)
     uintptr_t fault_addr;
     uint32_t *pte, *pde;
 
-    asm volatile ("mov %%cr2, %0" : "=r" (fault_addr) :: "memory");
+    __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr) :: "memory");
     if (pf_is_user(iframe.error_code)) {
         if (has_pgtab(fault_addr)) {
             pte = (uint32_t *)pte_from_addr(fault_addr);
@@ -316,8 +315,8 @@ void keyboard_handle(void)
 	pic_send_eoi(KEYBOARD_IRQ);
 }
 
-int syscall_handle(struct syscall_frame sframe)
+int syscall_handle(struct interrupt_frame iframe)
 {
-    printk("%s\n", sframe.iframe.ebx);
+    printk("%s\n", iframe.ebx);
     return 0;
 }

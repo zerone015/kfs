@@ -7,13 +7,13 @@ static inline uint8_t inb(uint16_t port)
 {
     uint8_t value;
 
-    asm volatile ("inb %1, %0" : "=a"(value) : "d"(port) : "memory");
+    __asm__ volatile ("inb %1, %0" : "=a"(value) : "d"(port) : "memory");
     return value;
 }
 
 static inline void outb(uint16_t port, uint8_t value) 
 {
-    asm volatile ("outb %1, %0" :: "d"(port), "a"(value) : "memory");
+    __asm__ volatile ("outb %1, %0" :: "d"(port), "a"(value) : "memory");
 }
 
 #endif
