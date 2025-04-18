@@ -23,7 +23,6 @@ extern control_protection_handle
 extern fpu_error_handle
 extern pit_handle
 extern keyboard_handle
-extern syscall_handle
 global division_error_handler
 global debug_handler
 global nmi_handler
@@ -48,7 +47,6 @@ global control_protection_handler
 global fpu_error_handler
 global pit_handler
 global keyboard_handler
-global syscall_handler	
 division_error_handler:
 	cld
 	push 0
@@ -154,28 +152,23 @@ fpu_error_handler:
 	pushad
 	jmp fpu_error_handle
 pit_handler:
-	push 0
-	pushad
+	push eax
+	push ecx
+	push edx
 	mov ax, 0x10
 	mov ds, ax
     mov es, ax
-	jmp pit_handle
+	call pit_handle
+	mov ax, 0x23
+	mov ds, ax
+	mov es, ax
+	pop edx
+	pop ecx
+	pop eax
+	iretd
 keyboard_handler:
 	cld
 	pushad
 	call keyboard_handle
 	popad
 	iretd
-syscall_handler:
-	push 0
-	pushad
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    call syscall_handle
-	mov ax, 0x23
-	mov ds, ax
-	mov es, ax
-    popad
-	add esp, 4
-    iretd

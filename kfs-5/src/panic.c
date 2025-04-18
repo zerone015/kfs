@@ -30,27 +30,20 @@ static inline void panic_msg_print(const char *msg)
     printk("Kernel panic: %s\n", msg);
 }
 
-static inline void registers_clear(void)
-{
-    __asm__ volatile (
-        "xor %%eax, %%eax\n"
-        "xor %%ebx, %%ebx\n"
-        "xor %%ecx, %%ecx\n"
-        "xor %%edx, %%edx\n"
-        "xor %%esi, %%esi\n"
-        "xor %%edi, %%edi\n"
-        "xor %%ebp, %%ebp\n"
-        "xor %%esp, %%esp\n"
-        ::: "memory"
-    );
-}
-
 static inline void system_halt(void)
 {
-    __asm__ volatile (
-        "cli\n"
-        "1:\n"
-        "hlt\n"
+    __asm__ (
+        "xor %%eax, %%eax\n\t"
+        "xor %%ebx, %%ebx\n\t"
+        "xor %%ecx, %%ecx\n\t"
+        "xor %%edx, %%edx\n\t"
+        "xor %%esi, %%esi\n\t"
+        "xor %%edi, %%edi\n\t"
+        "xor %%ebp, %%ebp\n\t"
+        "xor %%esp, %%esp\n\t"
+        "cli\n\t"
+        "1:\n\t"
+        "hlt\n\t"
         "jmp 1b"
         ::: "memory"
     );
@@ -62,20 +55,6 @@ void __attribute__((noreturn)) panic(const char *msg, struct panic_info *panic_i
     hex_dump(panic_info);
     panic_msg_print(msg);
     vga_disable_cursor();
-    registers_clear();
     system_halt();
     __builtin_unreachable();
-}
-
-void __attribute__((naked, noreturn)) do_panic(__attribute__((unused)) const char *msg)
-{
-    __asm__ volatile (
-        "pushfl\n\t"
-        "pushl 4(%esp)\n\t"
-        "pushal\n\t"
-        "addl $16, 12(%esp)\n\t"
-        "pushl %esp\n\t"
-        "pushl 48(%esp)\n\t"
-        "call panic\n\t"
-    );
 }

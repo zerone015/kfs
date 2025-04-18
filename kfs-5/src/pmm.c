@@ -3,9 +3,11 @@
 #include "panic.h"
 #include "paging.h"
 #include "vmm.h"
+#include "hmm.h"
 #include <stdbool.h>
 
 static struct buddy_allocator bd_alloc;
+uint16_t *page_ref;
 uint64_t ram_size;
 
 static inline void mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
@@ -307,4 +309,15 @@ void pmm_init(multiboot_info_t* mbd)
     kernel_memory_reserve(mmap, mmap_count);
     memory_align(mmap, mmap_count);
     page_allocator_init(mmap, mmap_count);
+}
+
+void page_ref_init(void)
+{
+    size_t page_ref_size;
+
+    page_ref_size = ram_size / PAGE_SIZE * sizeof(uint16_t);
+    page_ref = kmalloc(page_ref_size);
+    if (!page_ref)
+        do_panic("scheduler_init failed");
+    memset(page_ref, 0, page_ref_size);
 }

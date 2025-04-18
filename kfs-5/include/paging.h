@@ -55,7 +55,7 @@
 
 static inline void tlb_flush(uintptr_t addr) 
 {
-    __asm__ volatile ("invlpg (%0)" :: "r" (addr) : "memory");
+    __asm__ ("invlpg (%0)" :: "r" (addr));
 }
 
 #endif

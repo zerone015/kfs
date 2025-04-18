@@ -207,7 +207,7 @@ void page_fault_handle(struct interrupt_frame iframe)
     uintptr_t fault_addr;
     uint32_t *pte, *pde;
 
-    __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr) :: "memory");
+    __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr));
     if (pf_is_user(iframe.error_code)) {
         if (has_pgtab(fault_addr)) {
             pte = (uint32_t *)pte_from_addr(fault_addr);
@@ -266,12 +266,12 @@ void fpu_error_handle(struct interrupt_frame iframe)
     panic_handle("FPU error interrupt", &iframe);
 }
 
-void pit_handle(struct interrupt_frame iframe)
+void pit_handle(void)
 {
     pic_send_eoi(PIT_IRQ);
     if (current->time_slice_remaining != 0) {
         if (current->time_slice_remaining <= 1)
-            schedule(&iframe);
+            schedule();
         else 
             current->time_slice_remaining--;
     }
@@ -313,10 +313,4 @@ void keyboard_handle(void)
 			shift_flag = 0;
 	}
 	pic_send_eoi(KEYBOARD_IRQ);
-}
-
-int syscall_handle(struct interrupt_frame iframe)
-{
-    printk("%s\n", iframe.ebx);
-    return 0;
 }

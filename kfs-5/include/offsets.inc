@@ -1,0 +1,13 @@
+%ifndef _OFFSETS_H
+%define _OFFSETS_H
+
+%define OFFSET_TASK_READY 72
+%define OFFSET_TASK_CR3 4
+%define OFFSET_TASK_ESP 8
+%define OFFSET_TASK_ESP0 12
+%define OFFSET_GDT_BASE_LOW 2
+%define OFFSET_GDT_BASE_MID 4
+%define OFFSET_GDT_BASE_HIGH 7
+%define OFFSET_TSS_ESP0 4
+
+%endif

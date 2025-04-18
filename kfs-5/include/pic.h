@@ -27,16 +27,42 @@
 #define PIC_EOI		    0x20		/* End-of-interrupt command code */
 
 void pic_init(void);
-void pic_remap(int offset1, int offset2);
-void pic_disable(void); 
-void irq_set_mask(uint8_t irq_line);
-void irq_clear_mask(uint8_t irq_line);
 
 static inline void pic_send_eoi(uint8_t irq)
 {
 	if (irq >= 8)
 		outb(PIC2_CMD_PORT, PIC_EOI);
 	outb(PIC1_CMD_PORT, PIC_EOI);
+}
+
+static inline void irq_set_mask(uint8_t irq_line)
+{
+    uint16_t port;
+    uint8_t value;
+
+    if (irq_line < 8) {
+        port = PIC1_DATA_PORT;
+    } else {
+        port = PIC2_DATA_PORT;
+        irq_line -= 8;
+    }
+    value = inb(port) | (1 << irq_line);
+    outb(port, value);        
+}
+
+static inline void irq_clear_mask(uint8_t irq_line)
+{
+    uint16_t port;
+    uint8_t value;
+
+    if (irq_line < 8) {
+        port = PIC1_DATA_PORT;
+    } else {
+        port = PIC2_DATA_PORT;
+        irq_line -= 8;
+    }
+    value = inb(port) & ~(1 << irq_line);
+    outb(port, value);        
 }
 
 #endif

@@ -1,16 +1,17 @@
 #include "idt.h"
 #include "pic.h"
 #include "interrupt.h"
+#include "syscall.h"
 
 static struct idt_entry idt[IDT_SIZE];
 
 static inline void idt_load(struct idt_ptr *idt_ptr)
 {
-	__asm__ volatile (
+	__asm__ (
         "lidt (%0)"
         :
         : "r"(idt_ptr)
-        : "memory"
+		: "memory"
     );
 }
 

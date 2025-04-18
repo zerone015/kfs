@@ -64,7 +64,6 @@ extern kmain
     push ebx
     
     call kmain
-    sti
 .halt:
     hlt
     jmp .halt

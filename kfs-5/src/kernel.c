@@ -13,25 +13,42 @@
 #include "proc.h"
 #include "exec.h"
 
-void kmain(multiboot_info_t* mbd, uint32_t magic)
+static inline void init_arch(void)
 {
-	uintptr_t mem;
-
 	vga_init();
 	tty_init();
 	gdt_init();
 	idt_init();
 	pic_init();
-	if (magic != MULTIBOOT_BOOTLOADER_MAGIC)
-		do_panic("Invalid magic number");
-	if (!check_flag(mbd->flags, 6))
-		do_panic("invalid memory map given by GRUB bootloader");
-	pmm_init(mbd);
-	mem = vmm_init();
-	hmm_init(mem);
-	tss_init();
-	pit_init();
-	scheduler_init();
-	proc_init();
-	init_process();
+}
+
+static inline void check_bootloader(multiboot_info_t *mbd, uint32_t magic)
+{
+    if (magic != MULTIBOOT_BOOTLOADER_MAGIC)
+        do_panic("Invalid magic number");
+    if (!check_flag(mbd->flags, 6))
+        do_panic("Invalid memory map given by GRUB bootloader");
+}
+
+static inline void init_memory(multiboot_info_t *mbd)
+{
+    pmm_init(mbd);              
+    hmm_init(vmm_init());             
+    page_ref_init();
+}
+
+static inline void init_scheduler(void)
+{
+    pit_init();
+    tss_init();
+    pidmap_init();
+    init_process(); 
+}
+
+void kmain(multiboot_info_t* mbd, uint32_t magic)
+{
+	init_arch();
+	check_bootloader(mbd, magic);
+	init_memory(mbd);
+	init_scheduler();
 }

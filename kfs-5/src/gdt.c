@@ -2,7 +2,8 @@
 #include "hmm.h"
 #include "panic.h"
 
-struct gdt_entry gdt[GDT_SIZE];
+static struct gdt_entry gdt[GDT_SIZE];
+struct tss_entry *tss;
 
 static void gdt_set_entry(size_t idx, uint32_t limit, uint32_t base, uint8_t access, uint8_t flags)
 {
@@ -17,19 +18,19 @@ static void gdt_set_entry(size_t idx, uint32_t limit, uint32_t base, uint8_t acc
 
 static inline void gdt_load(struct gdt_ptr *gdt_ptr)
 {
-	__asm__ volatile (
-        "lgdt (%0)\n"
-        "jmp $" STR(GDT_SELECTOR_CODE_PL0) ", $.reload_cs\n"
-        ".reload_cs:\n"
-        "mov $" STR(GDT_SELECTOR_DATA_PL0) ", %%ax\n"
-        "mov %%ax, %%ds\n"
-        "mov %%ax, %%es\n"
-        "mov %%ax, %%fs\n"
-        "mov %%ax, %%gs\n"
-        "mov %%ax, %%ss\n"
+	__asm__ (
+        "lgdt (%0)\n\t"
+        "jmp $" STR(GDT_SELECTOR_CODE_PL0) ", $.reload_cs\n\t"
+        ".reload_cs:\n\t"
+        "mov $" STR(GDT_SELECTOR_DATA_PL0) ", %%ax\n\t"
+        "mov %%ax, %%ds\n\t"
+        "mov %%ax, %%es\n\t"
+        "mov %%ax, %%fs\n\t"
+        "mov %%ax, %%gs\n\t"
+        "mov %%ax, %%ss"
         :
         : "r"(gdt_ptr)
-        : "memory"
+		: "memory"
     );
 }
 
@@ -49,14 +50,15 @@ void gdt_init(void)
 
 void tss_init(void)
 {
-	struct tss *tss;
+	struct tss_entry *tss_entry;
 
-	tss = kmalloc(sizeof(struct tss));
-	if (!tss)
+	tss_entry = kmalloc(sizeof(struct tss_entry));
+	if (!tss_entry)
 		do_panic("tss initialize failed");
-	tss->ss0 = GDT_SELECTOR_DATA_PL0;
-	tss->esp0 = (uint32_t)&stack_top;
-	tss->iomap = sizeof(struct tss);
-	gdt_set_entry(5, sizeof(struct tss), (uint32_t)tss, GDT_TSS_ACCESS, GDT_TSS_FLAGS);
-	__asm__ volatile("ltr %%ax" :: "a"(GDT_SELECTOR_TSS) : "memory");
+	tss_entry->ss0 = GDT_SELECTOR_DATA_PL0;
+	tss_entry->esp0 = (uint32_t)&stack_top;
+	tss_entry->iomap = sizeof(struct tss_entry);
+	gdt_set_entry(5, sizeof(struct tss_entry), (uint32_t)tss_entry, GDT_TSS_ACCESS, GDT_TSS_FLAGS);
+	__asm__ ("ltr %%ax" :: "a"(GDT_SELECTOR_TSS));
+	tss = tss_entry;
 }

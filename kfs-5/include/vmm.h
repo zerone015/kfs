@@ -8,7 +8,50 @@
 #include "proc.h"
 #include <stdint.h>
 #include <stdbool.h>
-#include "vmm_types.h"
+
+#define K_VBLOCK_MAX    	((K_VSPACE_SIZE / K_PAGE_SIZE / 2) + 1)
+#define K_VBLOCK_MAX_SIZE  	(K_VBLOCK_MAX * sizeof(struct kernel_vblock))
+
+struct kernel_vblock {
+	uintptr_t base;
+	size_t size;
+	struct list_head list_head;
+};
+
+struct ptr_stack {
+	struct kernel_vblock *ptrs[K_VBLOCK_MAX];
+	int top;
+};
+
+struct user_vblock {
+	struct rb_node by_base;
+	struct rb_node by_size;
+	uintptr_t base;
+	size_t size;
+};
+
+struct mapping_file {
+	struct rb_node by_base;
+	uintptr_t base;
+	size_t size;
+};
+
+struct user_vblock_tree {
+	struct rb_root by_base;
+	struct rb_root by_size;
+};
+
+struct mapping_file_tree {
+	struct rb_root by_base;
+};
+
+enum clean_flags {
+    CL_MAPPING_FREE = 1 << 0,
+    CL_TLB_FLUSH    = 1 << 1,
+    CL_RECYCLE      = 1 << 2,
+};
+
+extern struct task_struct *current;
 
 uintptr_t vmm_init(void);
 uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
@@ -136,6 +179,13 @@ static inline __attribute__((always_inline)) void pgdir_clean(bool do_recycle)
     }
     if (do_recycle)
         memset32(pde, 0, 768);
+}
+
+static inline __attribute__((always_inline)) void user_vspace_clean(struct user_vblock_tree *vblocks, struct mapping_file_tree *mapping_files, int flags)
+{
+    vblocks_clean(vblocks);
+    mapping_files_clean(mapping_files, flags & CL_MAPPING_FREE, flags & CL_TLB_FLUSH);
+    pgdir_clean(flags & CL_RECYCLE);
 }
 
 #endif
