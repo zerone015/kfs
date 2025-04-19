@@ -30,7 +30,8 @@ struct interrupt_frame {
 #define PF_PTE_FLAGS_MASK           0x1FF
 
 #define panic_is_user(cs)           (((cs) & 0x3) == 3)
-#define pf_is_user(ec)              ((ec) & PF_EC_USER)
+#define pf_is_usermode(ec)          ((ec) & PF_EC_USER)
+#define pf_is_userspace(addr)       ((addr) < K_VSPACE_START)
 #define pg_is_reserve(ec, entry)    (!((ec) & PF_EC_PRESENT) && ((entry) & PG_RESERVED))
 #define MAKE_PRESENT_PDE(p)         ((p) = (alloc_pages(K_PAGE_SIZE) | (((p) & PF_PDE_FLAGS_MASK) | PG_PRESENT)))
 #define MAKE_PRESENT_PTE(p)         ((p) = (alloc_pages(PAGE_SIZE) | (((p) & PF_PTE_FLAGS_MASK) | PG_PRESENT)))

@@ -3,8 +3,8 @@
 #include "hmm.h"
 #include "panic.h"
 #include "exec.h"
-#include "unistd.h"
 #include "utils.h"
+#include "syscall.h"
 
 static inline uint32_t current_cr3(void)
 {
@@ -44,53 +44,96 @@ static inline void __attribute__((always_inline)) t_number_to_string(char *buf, 
 	buf[len] = '\0';
 }
 
-void init_process_code(void)
-{
-	// char buf[10];
-	// int pid;
-	// int magic_number = 960705;
 
-	// for (int i = 0; i < 10; i++) {
-	// 	pid = fork();
-	// 	if (pid < 0) {
-	// 		write("fork failed\n");
-	// 		while (true);
-	// 	}
-	// 	if (pid == 0) {
-	// 		write("hi i'm child. my pid is");
-	// 		t_number_to_string(buf, getuid(), 10, "0123456789");
-	// 		write(buf);
-	// 		magic_number++;
-	// 		write("magic number is ");
-	// 		t_number_to_string(buf, magic_number, 10, "0123456789");
-	// 		write(buf);
-	// 		write("\n");
-	// 		while (true);
-	// 	}
-	// 	else {
-	// 		write("fork successed. child pid is");
-	// 		t_number_to_string(buf, pid, 10, "0123456789");
-	// 		write(buf);
-	// 		write("\n");
-	// 	}
-	// }
-	// if (magic_number != 960705)
-	// 	write("cow failed.. OTL\n");
-	// else
-	// 	write("um... for the time being multi tasking ok..");
-	// while(true);
-	
+static inline int __attribute__((always_inline)) fork(void)
+{
+    int ret;
+
+	__asm__ volatile (
+		"int $0x80"
+		: "=a"(ret)
+		: "a"(SYS_fork)
+	);
+	return ret;
+}
+
+static inline void __attribute__((always_inline)) exit(int status)
+{
+	__asm__ (
+		"int $0x80"
+		:
+		: "a"(SYS_exit), "b"(status)
+	);
+}
+
+static inline int __attribute__((always_inline)) wait(int *status)
+{
 	int ret;
 
-    while (42) {
-        __asm__ volatile (
-            "int $0x80"
-            : "=a"(ret)
-            : "a"(4), "b"("syscall test!!\n")
-        );
-		while (true)
-		;
-    }
+	__asm__ (
+		"int $0x80"
+		: "=a"(ret)
+		: "a"(SYS_wait), "b"(status)
+	);
+	return ret;
+}
+
+static inline void __attribute__((always_inline)) write(const char *msg)
+{
+	__asm__ (
+		"int $0x80"
+		: 
+		: "a"(SYS_write), "b"(msg)
+	);
+}
+
+static inline int __attribute__((always_inline)) getuid(void)
+{
+	int ret;
+
+	__asm__ (
+		"int $0x80"
+		: "=a"(ret)
+		: "a"(SYS_getuid)
+	);
+	return ret;
+}
+
+void init_process_code(void)
+{
+	char buf[10];
+	int pid;
+	int magic_number = 960705;
+
+	for (int i = 0; i < 10; i++) {
+		pid = fork();
+		if (pid < 0) {
+			write("fork failed\n");
+			while (true);
+		}
+		if (pid == 0) {
+			write("hi i'm child. my pid is");
+			t_number_to_string(buf, getuid(), 10, "0123456789");
+			write(buf);
+			magic_number++;
+			write("magic number is ");
+			t_number_to_string(buf, magic_number, 10, "0123456789");
+			write(buf);
+			write("\n");
+			while (true);
+		}
+		else {
+			write("fork successed. child pid is");
+			t_number_to_string(buf, pid, 10, "0123456789");
+			write(buf);
+			write("\n");
+		}
+	}
+	if (magic_number != 960705)
+		write("cow failed.. OTL\n");
+	else
+		write("um... for the time being multi tasking ok..");
+	while(true);
 }
 
 void init_process(void)

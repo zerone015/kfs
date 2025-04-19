@@ -14,7 +14,7 @@ static inline void pgdir_init(void)
 
     pde = (uint32_t *)PAGE_DIR;
     pte = (uint32_t *)PAGE_TAB;
-    
+
     pde[pde_idx(USER_CODE_BASE)] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
     pte[pte_idx(USER_CODE_BASE) + 1024*pde_idx(USER_CODE_BASE)] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
     for (size_t i = 1; i < (USER_CODE_SIZE / PAGE_SIZE); i++)
@@ -95,9 +95,6 @@ void exec_fn(void (*func)())
     user_vspace_clean(&current->vblocks, &current->mapping_files, 
         CL_MAPPING_FREE | CL_TLB_FLUSH | CL_RECYCLE);
     user_vspace_init();
-    while (true)
-    ;
-    
-    memcpy32((void *)USER_CODE_BASE, func, USER_CODE_SIZE / 4);
-    // jmp_entry(USER_CODE_BASE);
+    memcpy((void *)USER_CODE_BASE, func, USER_CODE_SIZE);
+    jmp_entry(USER_CODE_BASE);
 }

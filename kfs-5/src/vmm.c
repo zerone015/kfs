@@ -64,7 +64,7 @@ static inline void vb_reserve(uintptr_t v_addr, size_t size)
     pde[i] = PG_RESERVED | PG_PS | PG_RDWR;
 }
 
-static inline __attribute__((always_inline)) size_t vb_size_and_act(uintptr_t addr, bool do_free)
+static inline size_t vb_size_with_free(uintptr_t addr)
 {
     uint32_t *pde;
     size_t size;
@@ -74,23 +74,12 @@ static inline __attribute__((always_inline)) size_t vb_size_and_act(uintptr_t ad
     do {
         if (page_is_present(*pde)) {
             tlb_flush(addr);
-            if (do_free)
-                free_pages(page_from_pde_4mb(*pde), K_PAGE_SIZE);
+            free_pages(page_from_pde_4mb(*pde), K_PAGE_SIZE);
         }
         size += K_PAGE_SIZE;
         addr += K_PAGE_SIZE;
     } while (*pde++ & PG_CONTIGUOUS);
     return size;
-}
-
-static inline size_t vb_size_with_free(uintptr_t addr)
-{
-   return vb_size_and_act(addr, true);
-}
-
-static inline size_t vb_size_without_free(uintptr_t addr)
-{
-   return vb_size_and_act(addr, false);
 }
 
 static inline void vb_add_and_merge(uintptr_t addr, size_t size)
@@ -140,14 +129,6 @@ void vb_free(void *addr)
     size_t size;
 
     size = vb_size_with_free((uintptr_t)addr);
-    vb_add_and_merge((uintptr_t)addr, size);
-}
-
-void vb_unmap(void *addr)
-{
-    size_t size;
-
-    size = vb_size_without_free((uintptr_t)addr);
     vb_add_and_merge((uintptr_t)addr, size);
 }
 

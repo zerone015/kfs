@@ -209,7 +209,7 @@ void page_fault_handle(struct interrupt_frame iframe)
     uint32_t *pte, *pde;
 
     __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr));
-    if (pf_is_user(iframe.error_code)) {
+    if (pf_is_userspace(fault_addr)) {
         if (has_pgtab(fault_addr)) {
             pte = (uint32_t *)pte_from_addr(fault_addr);
             if (is_rdwr_cow(*pte)) {
@@ -223,6 +223,8 @@ void page_fault_handle(struct interrupt_frame iframe)
         }
         invalid_access_handle();
     } else {
+        if (pf_is_usermode(iframe.error_code))
+            invalid_access_handle();
         pde = (uint32_t *)pde_from_addr(fault_addr);
         if (pg_is_reserve(iframe.error_code, *pde)) {
             MAKE_PRESENT_PDE(*pde);

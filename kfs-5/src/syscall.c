@@ -109,25 +109,23 @@ static inline uintptr_t pgdir_clone(void)
     uintptr_t pde_page;
     size_t i;
 
-    pde = (uint32_t *)vb_alloc(PAGE_SIZE);
+    pde = (uint32_t *)kmalloc(PAGE_SIZE);
     if (!pde)
         goto out;
     memcpy32(pde, (void *)PAGE_DIR, PAGE_SIZE / 4);
     for (i = 0; i < 768; i++) {
         if (pde[i]) {
-            pgtab = (uint32_t *)vb_alloc(PAGE_SIZE);
+            pgtab = (uint32_t *)kmalloc(PAGE_SIZE);
             if (!pgtab) 
                 goto out_clean_pgdir;
             memcpy32(pgtab, (void *)(PAGE_TAB + i*PAGE_SIZE), PAGE_SIZE / 4);
             pte = (uint32_t *)pte_from_addr(pgtab);
             pde[i] = page_from_pte(*pte) | flags_from_entry(pde[i]);
-            vb_unmap(pgtab);
         }
     }
     pte = (uint32_t *)pte_from_addr(pde);
     pde_page = page_from_pte(*pte);
     pde[1023] = pde_page | flags_from_entry(pde[1023]);
-    vb_unmap(pde);
     return pde_page;
 
 out_clean_pgdir:
