@@ -3,6 +3,8 @@
 #include "hmm.h"
 #include "panic.h"
 #include "exec.h"
+#include "unistd.h"
+#include "utils.h"
 
 static inline uint32_t current_cr3(void)
 {
@@ -15,9 +17,70 @@ static inline uint32_t current_cr3(void)
 	return cr3;
 }
 
+static inline __attribute__((always_inline)) int t_nbrlen(size_t n, int radix)
+{
+	int len;
+
+	len = 0;
+	if (n == 0)
+		len++;
+	while (n) {
+		len++;
+		n /= radix;
+	}
+	return len;
+}
+
+static inline void __attribute__((always_inline)) t_number_to_string(char *buf, size_t n, size_t radix, const char *base)
+{
+	int i;
+	int len;
+
+	len = t_nbrlen(n, radix);
+	for (i = 0; i < len; i++) {
+		buf[len - 1 - i] = base[n % radix];
+		n /= radix;
+	}
+	buf[len] = '\0';
+}
+
 void init_process_code(void)
 {
-    int ret;
+	// char buf[10];
+	// int pid;
+	// int magic_number = 960705;
+
+	// for (int i = 0; i < 10; i++) {
+	// 	pid = fork();
+	// 	if (pid < 0) {
+	// 		write("fork failed\n");
+	// 		while (true);
+	// 	}
+	// 	if (pid == 0) {
+	// 		write("hi i'm child. my pid is");
+	// 		t_number_to_string(buf, getuid(), 10, "0123456789");
+	// 		write(buf);
+	// 		magic_number++;
+	// 		write("magic number is ");
+	// 		t_number_to_string(buf, magic_number, 10, "0123456789");
+	// 		write(buf);
+	// 		write("\n");
+	// 		while (true);
+	// 	}
+	// 	else {
+	// 		write("fork successed. child pid is");
+	// 		t_number_to_string(buf, pid, 10, "0123456789");
+	// 		write(buf);
+	// 		write("\n");
+	// 	}
+	// }
+	// if (magic_number != 960705)
+	// 	write("cow failed.. OTL\n");
+	// else
+	// 	write("um... for the time being multi tasking ok..");
+	// while(true);
+	
+	int ret;
 
     while (42) {
         __asm__ volatile (
@@ -39,6 +102,7 @@ void init_process(void)
 		do_panic("init process create failed");
 	
 	task->pid = INIT_PROCESS_PID;
+	task->uid = task->pid;				//stub
 	task->cr3 = current_cr3();
 	task->esp0 = (uint32_t)&stack_top;
     task->time_slice_remaining = DEFAULT_TIMESLICE;

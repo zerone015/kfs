@@ -19,11 +19,10 @@ static inline void pgdir_init(void)
     pte[pte_idx(USER_CODE_BASE) + 1024*pde_idx(USER_CODE_BASE)] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
     for (size_t i = 1; i < (USER_CODE_SIZE / PAGE_SIZE); i++)
         pte[pte_idx(USER_CODE_BASE) + 1024*pde_idx(USER_CODE_BASE) + i] = PG_RESERVED | PG_US | PG_RDWR;
-
+ 
     pde[pde_idx(USER_STACK_BASE)] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
-    for (size_t i = 0; i < ((USER_STACK_SIZE / PAGE_SIZE) - 1); i++)
+    for (size_t i = 0; i < (USER_STACK_SIZE / PAGE_SIZE); i++)
         pte[pte_idx(USER_STACK_BASE) + 1024*pde_idx(USER_STACK_BASE) + i] = PG_RESERVED | PG_US | PG_RDWR;
-    pte[pte_idx(USER_STACK_TOP - 4) + 1024*pde_idx(USER_STACK_BASE)] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
 }
 
 static inline void mapping_file_tree_init(void)
@@ -96,6 +95,9 @@ void exec_fn(void (*func)())
     user_vspace_clean(&current->vblocks, &current->mapping_files, 
         CL_MAPPING_FREE | CL_TLB_FLUSH | CL_RECYCLE);
     user_vspace_init();
-    memcpy32((void *)USER_CODE_BASE, func, PAGE_SIZE / 4);
-    jmp_entry(USER_CODE_BASE);
+    while (true)
+    ;
+    
+    memcpy32((void *)USER_CODE_BASE, func, USER_CODE_SIZE / 4);
+    // jmp_entry(USER_CODE_BASE);
 }

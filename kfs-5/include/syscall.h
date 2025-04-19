@@ -13,6 +13,7 @@
 #define SYS_close       6
 #define SYS_wait        7       // SYS_waitpid
 #define SYS_execve      11
+#define SYS_getuid      24
 #define SYS_brk         45
 #define SYS_ioctl       54
 #define SYS_mmap        90

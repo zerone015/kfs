@@ -53,9 +53,9 @@ stack_copy_and_adjust:
     add edi, eax
     mov [ebx + OFFSET_TASK_ESP], edi  
 
-    pop ebp
-    pop edi
-    pop esi
-    pop ebx
+    mov ebx, [esp + 12]
+    mov esi, [esp + 8]
+    mov edi, [esp + 4]
+    add esp, 16
       
     ret

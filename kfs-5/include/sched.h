@@ -22,6 +22,7 @@ enum process_state {
 
 struct task_struct {
     int pid;
+    int uid;
     uint32_t cr3;
     uint32_t esp;
     uint32_t esp0;
@@ -34,9 +35,7 @@ struct task_struct {
     struct user_vblock_tree vblocks;
     struct mapping_file_tree mapping_files;
     uint8_t state;
-    // memory..
     // signal queue..
-    // owner..
 };
 
 extern struct task_struct *current;

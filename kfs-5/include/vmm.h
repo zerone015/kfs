@@ -51,8 +51,6 @@ enum clean_flags {
     CL_RECYCLE      = 1 << 2,
 };
 
-extern struct task_struct *current;
-
 uintptr_t vmm_init(void);
 uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
 size_t vb_size(void *addr);

@@ -177,6 +177,7 @@ void gpf_handle(struct interrupt_frame iframe)
 static inline void invalid_access_handle() 
 {
     printk("segfault\n");
+    while (true);
     // TODO: 프로세스 종료 루틴 연결
 }
 

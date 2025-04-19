@@ -185,7 +185,8 @@ static inline int create_child(struct task_struct **out_child)
         ret = -EAGAIN;
         goto out_clean_child;
     }
-
+    child->uid = child->pid; //stub
+    
     child->esp0 = (uint32_t)kmalloc(KERNEL_STACK_SIZE);
     if (!child->esp0)
         goto out_clean_pid;
@@ -296,6 +297,11 @@ static inline void __attribute__((noreturn)) sys_exit(int status)
     __builtin_unreachable();
 }
 
+static inline int sys_getuid(void)
+{
+    return current->uid;
+}
+
 int syscall_dispatch(struct syscall_frame sframe)
 {
     int ret = -ENOSYS;
@@ -312,6 +318,9 @@ int syscall_dispatch(struct syscall_frame sframe)
         break;
     case SYS_wait:
         ret = sys_wait((int *)sframe.arg1);
+        break;
+    case SYS_getuid:
+        ret = sys_getuid();
         break;
     }
     return ret;
