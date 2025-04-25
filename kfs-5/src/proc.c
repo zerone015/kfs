@@ -3,31 +3,15 @@
 #include "hmm.h"
 #include "panic.h"
 #include "exec.h"
-
-static inline uint32_t current_cr3(void)
-{
-	uint32_t cr3;
-
-	__asm__ volatile (
-		"movl %%cr3, %0"
-		: "=r"(cr3)
-	);
-	return cr3;
-}
+#include "utils.h"
+#include "syscall.h"
+#include "errno.h"
+#include "tmp_syscall.h"
 
 void init_process_code(void)
 {
-    int ret;
-
-    while (42) {
-        __asm__ volatile (
-            "int $0x80"
-            : "=a"(ret)
-            : "a"(4), "b"("syscall test!!\n")
-        );
-		while (true)
-		;
-    }
+	write("hi~");
+	while (true);
 }
 
 void init_process(void)
@@ -39,6 +23,7 @@ void init_process(void)
 		do_panic("init process create failed");
 	
 	task->pid = INIT_PROCESS_PID;
+	task->uid = task->pid;				//stub
 	task->cr3 = current_cr3();
 	task->esp0 = (uint32_t)&stack_top;
     task->time_slice_remaining = DEFAULT_TIMESLICE;
@@ -46,7 +31,7 @@ void init_process(void)
 	task->vblocks.by_base = RB_ROOT;
 	task->vblocks.by_size = RB_ROOT;
 	task->mapping_files.by_base = RB_ROOT;
-	task->state = PROCESS_RUNNING;
+	task->state = PROCESS_READY;
 	
 	init_list_head(&task->children);
 	init_list_head(&task->ready);
@@ -54,6 +39,6 @@ void init_process(void)
 	pid_table_register(task);
     
 	current = task;
-	
+
 	exec_fn(init_process_code);
 }

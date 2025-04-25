@@ -31,7 +31,7 @@ void idt_init(void)
 	idt_set_gate(DIVISION_ERR_INT, (uintptr_t)division_error_handler, INT_GATE_PL0);
 	idt_set_gate(DEBUG_INT, (uintptr_t)debug_handler, INT_GATE_PL0);
 	idt_set_gate(NMI_INT, (uintptr_t)nmi_handler, INT_GATE_PL0);
-	idt_set_gate(BREAKPOINT_INT, (uintptr_t)breakpoint_handler, INT_GATE_PL0);
+	idt_set_gate(BREAKPOINT_INT, (uintptr_t)breakpoint_handler, INT_GATE_PL3);
 	idt_set_gate(OVERFLOW_INT, (uintptr_t)overflow_handler, INT_GATE_PL0);
 	idt_set_gate(BOUND_RANGE_INT, (uintptr_t)bound_range_handler, INT_GATE_PL0);
 	idt_set_gate(INVALID_OPCODE_INT, (uintptr_t)invalid_opcode_handler, INT_GATE_PL0);

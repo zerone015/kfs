@@ -10,20 +10,28 @@
 
 static inline void pgdir_init(void)
 {
-    uint32_t *pde, *pte;
+    int code_pdi, stack_pdi;
+    uint32_t *pgdir, *pgtab;
 
-    pde = (uint32_t *)PAGE_DIR;
-    pte = (uint32_t *)PAGE_TAB;
+    pgdir = current_pgdir();
     
-    pde[pde_idx(USER_CODE_BASE)] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
-    pte[pte_idx(USER_CODE_BASE) + 1024*pde_idx(USER_CODE_BASE)] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
-    for (size_t i = 1; i < (USER_CODE_SIZE / PAGE_SIZE); i++)
-        pte[pte_idx(USER_CODE_BASE) + 1024*pde_idx(USER_CODE_BASE) + i] = PG_RESERVED | PG_US | PG_RDWR;
+    code_pdi = pgdir_index(USER_CODE_BASE);
+    stack_pdi = pgdir_index(USER_STACK_BASE);
 
-    pde[pde_idx(USER_STACK_BASE)] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
-    for (size_t i = 0; i < ((USER_STACK_SIZE / PAGE_SIZE) - 1); i++)
-        pte[pte_idx(USER_STACK_BASE) + 1024*pde_idx(USER_STACK_BASE) + i] = PG_RESERVED | PG_US | PG_RDWR;
-    pte[pte_idx(USER_STACK_TOP - 4) + 1024*pde_idx(USER_STACK_BASE)] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
+    pgdir[code_pdi] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
+    pgdir[stack_pdi] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
+    
+    memset32(pgtab_from_pdi(code_pdi), 0, PAGE_SIZE / 4);
+    memset32(pgtab_from_pdi(stack_pdi), 0, PAGE_SIZE / 4);
+
+    pgtab = pte_from_addr(USER_CODE_BASE);
+    *pgtab = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
+    for (size_t i = 1; i < (USER_CODE_SIZE / PAGE_SIZE); i++)
+        pgtab[i] = PG_RESERVED | PG_US | PG_RDWR;
+    
+    pgtab = pte_from_addr(USER_STACK_BASE);
+    for (size_t i = 0; i < (USER_STACK_SIZE / PAGE_SIZE); i++)
+        pgtab[i] = PG_RESERVED | PG_US | PG_RDWR;
 }
 
 static inline void mapping_file_tree_init(void)
@@ -67,7 +75,7 @@ static inline void user_vspace_init(void)
     pgdir_init();
 }
 
-static inline void jmp_entry(uintptr_t user_eip) {
+static inline void jmp_to_entry_point(void) {
     __asm__ (
         "mov %[user_ds], %%ax\n\t"
         "mov %%ax, %%ds\n\t"
@@ -85,17 +93,29 @@ static inline void jmp_entry(uintptr_t user_eip) {
         : [user_ss] "i" (GDT_SELECTOR_DATA_PL3),
           [user_esp] "i" (USER_STACK_TOP),
           [user_cs] "i" (GDT_SELECTOR_CODE_PL3),
-          [user_eip] "r" (user_eip),
+          [user_eip] "i" (USER_CODE_BASE),
           [user_ds] "i" (GDT_SELECTOR_DATA_PL3)
         : "memory", "eax"
     );
 }
 
+static inline void set_rdonly(void)
+{
+    uint32_t *pte;
+
+    pte = pte_from_addr(USER_CODE_BASE);
+    for (size_t i = 0; i < (USER_CODE_SIZE / PAGE_SIZE); i++) {
+        pte[i] &= ~PG_RDWR;
+        tlb_invl(USER_CODE_BASE + i*PAGE_SIZE); 
+    }
+}
+
 void exec_fn(void (*func)())
 {
     user_vspace_clean(&current->vblocks, &current->mapping_files, 
-        CL_MAPPING_FREE | CL_TLB_FLUSH | CL_RECYCLE);
+        CL_MAPPING_FREE | CL_TLB_INVL | CL_RECYCLE);
     user_vspace_init();
-    memcpy32((void *)USER_CODE_BASE, func, PAGE_SIZE / 4);
-    jmp_entry(USER_CODE_BASE);
+    memcpy((void *)USER_CODE_BASE, func, USER_CODE_SIZE);
+    set_rdonly();
+    jmp_to_entry_point();
 }

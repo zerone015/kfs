@@ -7,7 +7,7 @@
 #define USER_STACK_GUARD_SIZE   PAGE_SIZE
 #define USER_STACK_TOP          (USER_STACK_BASE + USER_STACK_SIZE)
 #define USER_CODE_BASE          PAGE_SIZE
-#define USER_CODE_SIZE          PAGE_SIZE
+#define USER_CODE_SIZE          (PAGE_SIZE * 2)
 
 #define is_code_section(addr)   (((addr) >= USER_CODE_BASE) && ((addr) < (USER_CODE_BASE + USER_CODE_SIZE)))
 

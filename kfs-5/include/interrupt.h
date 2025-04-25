@@ -27,13 +27,13 @@ struct interrupt_frame {
 #define PF_EC_PRESENT               PG_PRESENT
 #define PF_EC_USER                  PG_US
 #define PF_PDE_FLAGS_MASK           0x17FF
-#define PF_PTE_FLAGS_MASK           0x1FF
+#define PF_PTE_FLAGS_MASK           (PG_GLOBAL | 0xFF)
 
-#define panic_is_user(cs)           (((cs) & 0x3) == 3)
-#define pf_is_user(ec)              ((ec) & PF_EC_USER)
-#define pg_is_reserve(ec, entry)    (!((ec) & PF_EC_PRESENT) && ((entry) & PG_RESERVED))
-#define MAKE_PRESENT_PDE(p)         ((p) = (alloc_pages(K_PAGE_SIZE) | (((p) & PF_PDE_FLAGS_MASK) | PG_PRESENT)))
-#define MAKE_PRESENT_PTE(p)         ((p) = (alloc_pages(PAGE_SIZE) | (((p) & PF_PTE_FLAGS_MASK) | PG_PRESENT)))
+#define panic_is_user(cs)               (((cs) & 0x3) == 3)
+#define pf_is_usermode(ec)              ((ec) & PF_EC_USER)
+#define entry_is_reserved(ec, entry)    (!((ec) & PF_EC_PRESENT) && ((entry) & PG_RESERVED))
+#define MAKE_PRESENT_PDE(p)             ((p) = (alloc_pages(K_PAGE_SIZE) | (((p) & PF_PDE_FLAGS_MASK) | PG_PRESENT)))
+#define MAKE_PRESENT_PTE(p)             ((p) = (alloc_pages(PAGE_SIZE) | (((p) & PF_PTE_FLAGS_MASK) | PG_PRESENT)))
 
 void division_error_handler(void);
 void division_error_handle(struct interrupt_frame iframe);

@@ -6,6 +6,7 @@
 #include "interrupt.h"
 #include "gdt.h"
 #include "pid.h"
+#include "printk.h"
 
 #define DEFAULT_TIMESLICE   10
 #define PID_TABLE_MAX       PID_MAX
@@ -22,6 +23,7 @@ enum process_state {
 
 struct task_struct {
     int pid;
+    int uid;
     uint32_t cr3;
     uint32_t esp;
     uint32_t esp0;
@@ -34,9 +36,7 @@ struct task_struct {
     struct user_vblock_tree vblocks;
     struct mapping_file_tree mapping_files;
     uint8_t state;
-    // memory..
     // signal queue..
-    // owner..
 };
 
 extern struct task_struct *current;
@@ -69,12 +69,12 @@ static inline void remove_child_from_parent(struct task_struct *child)
     list_del(&child->child);
 }
 
-static inline void ready_queue_register(struct task_struct *task)
+static inline void ready_queue_enqueue(struct task_struct *task)
 {
     list_add_tail(&task->ready, &current->ready);
 }
 
-static inline void ready_queue_unregister(struct task_struct *task)
+static inline void ready_queue_dequeue(struct task_struct *task)
 {
     list_del(&task->ready);
 }
@@ -84,10 +84,6 @@ static inline void schedule(void)
     struct task_struct *next_task;
 
     next_task = list_next_entry(current, ready);
-
-    current->state = PROCESS_READY;
-    next_task->state = PROCESS_RUNNING;
-
     switch_to_task(next_task);
 };
 
@@ -96,12 +92,7 @@ static inline void yield(void)
     struct task_struct *next_task;
 
     next_task = list_next_entry(current, ready);
-    
-    current->state = PROCESS_WAITING;
-    next_task->state = PROCESS_RUNNING;
-    
-    ready_queue_unregister(current);
-    
+    ready_queue_dequeue(current);
     switch_to_task(next_task);
 };
 

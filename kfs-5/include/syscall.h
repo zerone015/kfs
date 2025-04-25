@@ -13,6 +13,7 @@
 #define SYS_close       6
 #define SYS_wait        7       // SYS_waitpid
 #define SYS_execve      11
+#define SYS_getuid      24
 #define SYS_brk         45
 #define SYS_ioctl       54
 #define SYS_mmap        90
@@ -30,9 +31,9 @@ struct syscall_frame {
     uint32_t arg6;
 };
 
+extern char child_return_address;  // in syscall.asm
+
 int syscall_handler(void);
 int syscall_dispatch(struct syscall_frame sframe);
-
-void stack_copy_and_adjust(struct task_struct *child);
 
 #endif

@@ -27,22 +27,22 @@
 #define PG_COW_RDONLY       0x400
 #define PG_CONTIGUOUS       0x200  // only kernel space
 
-#define PAGE_DIR            0xFFFFF000
-#define PAGE_TAB            0xFFC00000
+#define PAGE_DIR            ((uint32_t *)0xFFFFF000)
+#define PAGE_TAB            ((uint32_t *)0xFFC00000)
 
+#define pgtab_from_pdi(pdi)         (current_pgtab() + (pdi*1024))
 #define addr_from_pte(p)            ((((uintptr_t)(p) & 0x003FF000) << 10) | (((uintptr_t)(p) & 0x00000FFF) << 10))
-#define pte_from_addr(addr)         (0xFFC00000 | (((uintptr_t)(addr) & 0xFFC00000) >> 10) | (((uintptr_t)(addr) & 0x003FF000) >> 10))
+#define pte_from_addr(addr)         ((uint32_t *)(0xFFC00000 | (((uintptr_t)(addr) & 0xFFC00000) >> 10) | (((uintptr_t)(addr) & 0x003FF000) >> 10)))
 #define addr_from_pde(p)            (((uintptr_t)(p) & 0x00000FFF) << 20)
-#define pde_from_addr(addr)         (0xFFFFF000 | (((uintptr_t)(addr) & 0xFFC00000) >> 20))
+#define pde_from_addr(addr)         ((uint32_t *)(0xFFFFF000 | (((uintptr_t)(addr) & 0xFFC00000) >> 20)))
 #define page_from_pte(pte)          ((pte) & 0xFFFFF000)    
-#define page_from_pde_4mb(pte)      ((pte) & 0xFFC00000)     
-#define page_from_pde_4kb(pte)      ((pte) & 0xFFFFF000)
-#define page_from_pfn(pfn)          ((pfn) << 12)    
+#define page_4mb_from_pde(pde)      ((pde) & 0xFFC00000)     
+#define page_4kb_from_pde(pde)      ((pde) & 0xFFFFF000)
+#define pfn_from_page(pg)           ((pg) >> 12)
 #define pfn_from_pte(pte)           (page_from_pte(pte) >> 12)    
-#define flags_from_entry(entry)     ((entry & 0x00000FFF))
-#define pde_idx(addr)               ((addr) >> 22)
-#define pte_idx(addr)               (((addr) >> 12) & 0x3FF)
-#define has_pgtab(addr)             (*((uint32_t *)pde_from_addr((addr) & 0xFFC00000)) != 0)
+#define pg_entry_flags(entry)       ((entry & 0x00000FFF))
+#define pgdir_index(addr)           ((addr) >> 22)
+#define has_pgtab(addr)             (*(pde_from_addr((addr) & 0xFFC00000)) != 0)
 #define is_cow(pte)                 (((pte) & (PG_COW_RDONLY | PG_COW_RDWR)) != 0)
 #define is_rdonly_cow(pte)          (((pte) & PG_COW_RDONLY) != 0)
 #define is_rdwr_cow(pte)            (((pte) & PG_COW_RDWR) != 0)
@@ -50,12 +50,33 @@
 #define addr_get_offset(addr)       ((uintptr_t)(addr) & 0x00000FFF)
 #define k_addr_erase_offset(addr)   ((uintptr_t)(addr) & 0xFFC00000)
 #define k_addr_get_offset(addr)     ((uintptr_t)(addr) & 0x003FFFFF)
-#define is_kernel_space(addr)       ((uintptr_t)(addr) >= K_VSPACE_START)
+#define is_user_space(addr)         ((uintptr_t)(addr) < K_VSPACE_START)
 #define page_is_present(entry)      ((entry) & PG_PRESENT)
 
-static inline void tlb_flush(uintptr_t addr) 
+static inline void tlb_invl(uintptr_t addr) 
 {
     __asm__ ("invlpg (%0)" :: "r" (addr));
+}
+
+static inline uint32_t *current_pgdir(void)
+{
+    return PAGE_DIR;
+}
+
+static inline uint32_t *current_pgtab(void)
+{
+    return PAGE_TAB;
+}
+
+static inline uint32_t current_cr3(void)
+{
+	uint32_t cr3;
+
+	__asm__ volatile (
+		"movl %%cr3, %0"
+		: "=r"(cr3)
+	);
+	return cr3;
 }
 
 #endif

@@ -6,6 +6,9 @@ extern char stack_top;
 #include <stdint.h>
 #include <stdbool.h>
 
+#define STACK_DUMP_ENTRIES 24
+#define ENTRIES_PER_LINE 8
+
 struct panic_info {
     uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
     uint32_t eip, eflags;  

@@ -46,19 +46,16 @@ struct mapping_file_tree {
 };
 
 enum clean_flags {
-    CL_MAPPING_FREE = 1 << 0,
-    CL_TLB_FLUSH    = 1 << 1,
-    CL_RECYCLE      = 1 << 2,
+    CL_TLB_INVL     = 1 << 0,
+    CL_RECYCLE      = 1 << 1,
+    CL_MAPPING_FREE = 1 << 2,
 };
-
-extern struct task_struct *current;
 
 uintptr_t vmm_init(void);
 uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags);
 size_t vb_size(void *addr);
 void *vb_alloc(size_t size);
 void vb_free(void *addr);
-void vb_unmap(void *addr);
 
 static inline void vblock_bybase_add(struct user_vblock *new, struct rb_root *root)
 {
@@ -120,42 +117,40 @@ static inline void vblocks_clean(struct user_vblock_tree *vblocks)
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
         kfree(cur);
     }
-    root->rb_node = NULL;
-    
-    root = &vblocks->by_size;
-    rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_size) {
-        kfree(cur);
-    }
-    root->rb_node = NULL;
+    (&vblocks->by_base)->rb_node = NULL;
+    (&vblocks->by_size)->rb_node = NULL;
 }
 
-static inline __attribute__((always_inline)) void mapping_files_clean(struct mapping_file_tree *mapping_files, bool do_mapping_free, bool do_tlb_flush)
+static inline __attribute__((always_inline)) void mapping_files_clean(struct mapping_file_tree *mapping_files, bool do_mapping_free, bool do_tlb_invl)
 {
     struct mapping_file *cur, *tmp;
     struct rb_root *root;
     uint32_t *pte;
-    size_t size, pfn;
+    page_t page;
 
     root = &mapping_files->by_base;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
         if (do_mapping_free) {
-            size = cur->size;
-            pte = (uint32_t *)pte_from_addr(cur->base);
-            do {
-                if (is_cow(*pte)) {
-                    pfn = pfn_from_pte(*pte);
-                    if (page_ref[pfn] == 1)
-                        free_pages(page_from_pfn(pfn), PAGE_SIZE);
-                    page_ref[pfn]--;
+            pte = pte_from_addr(cur->base);
+            for (size_t i = 0; i < (cur->size / PAGE_SIZE); i++) {
+                page = page_from_pte(pte[i]);
+                if (is_cow(pte[i])) {
+                    if (!page_is_shared(page)) {
+                        free_pages(page, PAGE_SIZE);
+                        page_ref_clear(page);
+                    }
+                    else {
+                        page_ref_dec(page);
+                    }
+                    if (do_tlb_invl)
+                        tlb_invl(cur->base + (i*PAGE_SIZE));
                 } 
-                else if (page_is_present(*pte)) {
-                    free_pages(page_from_pte(*pte), PAGE_SIZE);
+                else if (page_is_present(pte[i])) {
+                    free_pages(page, PAGE_SIZE);
+                    if (do_tlb_invl)
+                        tlb_invl(cur->base + (i*PAGE_SIZE));
                 }
-                if (do_tlb_flush)
-                    tlb_flush(addr_from_pte(pte));
-                pte++;
-                size -= PAGE_SIZE;
-            } while (size);
+            }
         }
         kfree(cur);
     }
@@ -164,28 +159,46 @@ static inline __attribute__((always_inline)) void mapping_files_clean(struct map
 
 static inline __attribute__((always_inline)) void pgdir_clean(bool do_recycle)
 {
-    uint32_t *pde;
-    uintptr_t pgtab;
+    uint32_t *pgdir, *pgtab;
 
-    pde = (uint32_t *)PAGE_DIR;
+    pgdir = current_pgdir();
     for (size_t i = 0; i < 768; i++) {
-        if (pde[i]) {
-            free_pages(page_from_pde_4kb(pde[i]), PAGE_SIZE);
+        if (pgdir[i]) {
+            free_pages(page_4kb_from_pde(pgdir[i]), PAGE_SIZE);
             if (do_recycle) {
-                pgtab = PAGE_TAB + (i*PAGE_SIZE);
-                tlb_flush(pgtab);
+                pgdir[i] = 0;
+                pgtab = pgtab_from_pdi(i);
+                tlb_invl((uintptr_t)pgtab);
             }
         }
     }
-    if (do_recycle)
-        memset32(pde, 0, 768);
 }
 
 static inline __attribute__((always_inline)) void user_vspace_clean(struct user_vblock_tree *vblocks, struct mapping_file_tree *mapping_files, int flags)
 {
     vblocks_clean(vblocks);
-    mapping_files_clean(mapping_files, flags & CL_MAPPING_FREE, flags & CL_TLB_FLUSH);
+    mapping_files_clean(mapping_files, flags & CL_MAPPING_FREE, flags & CL_TLB_INVL);
     pgdir_clean(flags & CL_RECYCLE);
+}
+
+static inline void *tmp_vmap(page_t page)
+{
+    uint32_t *pte;
+
+    pte = pgtab_from_pdi(1022);
+    while (*pte)
+        pte++;
+    *pte = page | PG_RDWR | PG_PRESENT;
+    return (void *)addr_from_pte(pte);
+}
+
+static inline void tmp_vunmap(void *mem)
+{
+    uint32_t *pte;
+
+    pte = pte_from_addr(mem);
+    *pte = 0;
+    tlb_invl((uintptr_t)mem);
 }
 
 #endif

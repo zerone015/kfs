@@ -6,6 +6,7 @@
 int main(void) {
     printf("%%ifndef _OFFSETS_H\n");
     printf("%%define _OFFSETS_H\n\n");
+    printf("%%define OFFSET_TASK_PID %lu\n", offsetof(struct task_struct, pid));
     printf("%%define OFFSET_TASK_READY %lu\n", offsetof(struct task_struct, ready));
     printf("%%define OFFSET_TASK_CR3 %lu\n", offsetof(struct task_struct, cr3));
     printf("%%define OFFSET_TASK_ESP %lu\n", offsetof(struct task_struct, esp));

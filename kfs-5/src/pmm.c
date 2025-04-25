@@ -188,15 +188,15 @@ static inline void mbd_mmap_pages_unmap(multiboot_info_t* mbd)
 {
     uint32_t *pde;
 
-    pde = (uint32_t *)pde_from_addr(mbd->mmap_addr);
+    pde = pde_from_addr(mbd->mmap_addr);
     for (size_t i = 0; i < ((align_4mb_page(mbd->mmap_length) + K_PAGE_SIZE) / K_PAGE_SIZE); i++) {
         pde[i] = 0;
-        tlb_flush(mbd->mmap_addr);
+        tlb_invl(mbd->mmap_addr);
         mbd->mmap_addr += K_PAGE_SIZE;
     }
-    pde = (uint32_t *)pde_from_addr(mbd);
+    pde = pde_from_addr(mbd);
     *pde = 0;
-    tlb_flush((uintptr_t)mbd);
+    tlb_invl((uintptr_t)mbd);
 }
 
 static inline bool buddy_is_freeable(uint32_t *bitmap, size_t offset)
@@ -224,7 +224,7 @@ static inline void my_bit_clear(uint32_t *bitmap, size_t offset)
     BIT_CLEAR(bitmap[offset / 32], offset % 32);
 }
 
-static inline uintptr_t calc_addr(size_t order, size_t offset)
+static inline page_t calc_addr(size_t order, size_t offset)
 {
     return block_size(order) * offset;   
 }
@@ -241,7 +241,7 @@ static inline size_t first_set_bit_offset(uint32_t *bitmap)
     return bit_offset + 32*i;
 }
 
-uintptr_t alloc_pages(size_t size)
+page_t alloc_pages(size_t size)
 {
 	uint32_t *bitmap;
 	size_t order;
@@ -269,7 +269,7 @@ uintptr_t alloc_pages(size_t size)
 	return PAGE_NONE;
 }
 
-void free_pages(uintptr_t addr, size_t size)
+void free_pages(page_t page, size_t size)
 {
 	uint32_t *bitmap;
 	size_t order;
@@ -278,7 +278,7 @@ void free_pages(uintptr_t addr, size_t size)
 	order = 0;
 	while (size > block_size(order))
 		order++;
-	offset = addr / block_size(order);
+	offset = page / block_size(order);
 	bitmap = bd_alloc.orders[order].bitmap;
 	while (order < MAX_ORDER - 1) {
         if (!buddy_is_freeable(bitmap, offset))
@@ -318,6 +318,6 @@ void page_ref_init(void)
     page_ref_size = ram_size / PAGE_SIZE * sizeof(uint16_t);
     page_ref = kmalloc(page_ref_size);
     if (!page_ref)
-        do_panic("scheduler_init failed");
+        do_panic("page ref init failed");
     memset(page_ref, 0, page_ref_size);
 }

@@ -20,6 +20,8 @@ section .bss nobits
 align 4096
 boot_page_directory:
     resb 4096
+boot_page_table:
+    resb 4096
 section .multiboot.text
 global _start
 _start:
@@ -35,6 +37,7 @@ _start:
     and ebx, 0x003FFFFF
     or ebx, 0xC0800000
 
+    mov dword [boot_page_directory - 0xC0000000 + 1022 * 4], boot_page_table - 0xC0000000 + 0x003
     mov dword [boot_page_directory - 0xC0000000 + 1023 * 4], boot_page_directory - 0xC0000000 + 0x003
 
     mov ecx, boot_page_directory - 0xC0000000

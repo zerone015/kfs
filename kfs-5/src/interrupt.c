@@ -176,30 +176,29 @@ void gpf_handle(struct interrupt_frame iframe)
 
 static inline void invalid_access_handle() 
 {
-    printk("segfault\n");
+    printk("segfault\n ");
+    while (true);
     // TODO: 프로세스 종료 루틴 연결
 }
 
-static void cow_handle(uint32_t *old_pte, uintptr_t fault_addr, struct interrupt_frame *iframe) 
+static void cow_handle(uint32_t *pte, uintptr_t addr) 
 {
-    size_t pfn;
+    page_t page, new_page;
     void *new;
-    uint32_t *new_pte;
-    
-    pfn = pfn_from_pte(*old_pte);
-    if (page_ref[pfn] > 1) {
-        new = vb_alloc(PAGE_SIZE);
-        if (!new)
-            panic_handle("out of memory", iframe);
-        memcpy32(new, (void *)addr_from_pte(old_pte), PAGE_SIZE / 4);
-        new_pte = (uint32_t *)pte_from_addr(new);
-        *old_pte = page_from_pte(*new_pte) | (*old_pte & 0xDFF) | PG_RDWR;
-        vb_unmap(new);
+
+    page = page_from_pte(*pte);
+    if (page_is_shared(page)) {
+        new_page = alloc_pages(PAGE_SIZE);
+        new = tmp_vmap(new_page);
+        memcpy32(new, (void *)addr_erase_offset(addr), PAGE_SIZE / 4);
+        tmp_vunmap(new);
+        *pte = new_page | (*pte & 0x1FF) | PG_RDWR;
+        page_ref_dec(page);
     } else {
-        *old_pte = (*old_pte & ~PG_COW_RDWR) | PG_RDWR;
+        *pte = (*pte & ~PG_COW_RDWR) | PG_RDWR;
+        page_ref_clear(page);
     }
-    page_ref[pfn]--;
-    tlb_flush(fault_addr);
+    tlb_invl(addr);
 }
 
 void page_fault_handle(struct interrupt_frame iframe) 
@@ -208,22 +207,24 @@ void page_fault_handle(struct interrupt_frame iframe)
     uint32_t *pte, *pde;
 
     __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr));
-    if (pf_is_user(iframe.error_code)) {
+    if (is_user_space(fault_addr)) {
         if (has_pgtab(fault_addr)) {
-            pte = (uint32_t *)pte_from_addr(fault_addr);
+            pte = pte_from_addr(fault_addr);
             if (is_rdwr_cow(*pte)) {
-                cow_handle(pte, fault_addr, &iframe);
+                cow_handle(pte, fault_addr);
                 return;
             }
-            if (pg_is_reserve(iframe.error_code, *pte)) {
+            if (entry_is_reserved(iframe.error_code, *pte)) {
                 MAKE_PRESENT_PTE(*pte);
                 return;
             }
         }
         invalid_access_handle();
     } else {
-        pde = (uint32_t *)pde_from_addr(fault_addr);
-        if (pg_is_reserve(iframe.error_code, *pde)) {
+        if (pf_is_usermode(iframe.error_code))
+            invalid_access_handle();
+        pde = pde_from_addr(fault_addr);
+        if (entry_is_reserved(iframe.error_code, *pde)) {
             MAKE_PRESENT_PDE(*pde);
             return;
         }
