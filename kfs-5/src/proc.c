@@ -7,6 +7,7 @@
 #include "syscall.h"
 #include "errno.h"
 #include "tmp_syscall.h"
+#include "signal.h"
 
 void init_process_code(void)
 {
@@ -23,7 +24,11 @@ void init_process(void)
 		do_panic("init process create failed");
 	
 	task->pid = INIT_PROCESS_PID;
-	task->uid = task->pid;				//stub
+	task->uid = 0;
+	task->euid = 0;
+	task->suid = 0;
+	task->pgid = task->pid;
+	task->sid = task->pid;
 	task->cr3 = current_cr3();
 	task->esp0 = (uint32_t)&stack_top;
     task->time_slice_remaining = DEFAULT_TIMESLICE;
@@ -33,6 +38,9 @@ void init_process(void)
 	task->mapping_files.by_base = RB_ROOT;
 	task->state = PROCESS_READY;
 	
+	task->sig_pending = 0;
+	sig_handlers_init(task->sig_handlers);
+
 	init_list_head(&task->children);
 	init_list_head(&task->ready);
     

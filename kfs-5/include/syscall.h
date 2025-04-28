@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "pmm.h"
 #include "sched.h"
+#include "signal.h"
 
 #define SYS_exit        1
 #define SYS_fork        2
@@ -13,13 +14,14 @@
 #define SYS_close       6
 #define SYS_wait        7       // SYS_waitpid
 #define SYS_execve      11
+#define SYS_getpid      20
 #define SYS_getuid      24
-#define SYS_brk         45
+#define SYS_kill        37
+#define SYS_signal      48
 #define SYS_ioctl       54
 #define SYS_mmap        90
 #define SYS_munmap      91
 #define SYS_clone       120
-#define SYS_mprotect    125
 
 struct syscall_frame {
     uint32_t syscall_num;

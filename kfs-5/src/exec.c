@@ -7,6 +7,7 @@
 #include "panic.h"
 #include "pid.h"
 #include "proc.h"
+#include "signal.h"
 
 static inline void pgdir_init(void)
 {
@@ -99,7 +100,13 @@ static inline void jmp_to_entry_point(void) {
     );
 }
 
-static inline void set_rdonly(void)
+static inline void task_clean()
+{
+    current->sig_pending = 0;
+    sig_handlers_init(current->sig_handlers);
+}
+
+static inline void rdonly_pages_setup(void)
 {
     uint32_t *pte;
 
@@ -114,8 +121,9 @@ void exec_fn(void (*func)())
 {
     user_vspace_clean(&current->vblocks, &current->mapping_files, 
         CL_MAPPING_FREE | CL_TLB_INVL | CL_RECYCLE);
+    task_clean();
     user_vspace_init();
     memcpy((void *)USER_CODE_BASE, func, USER_CODE_SIZE);
-    set_rdonly();
+    rdonly_pages_setup();
     jmp_to_entry_point();
 }

@@ -7,6 +7,7 @@
 #include "gdt.h"
 #include "pid.h"
 #include "printk.h"
+#include "signal_types.h"
 
 #define DEFAULT_TIMESLICE   10
 #define PID_TABLE_MAX       PID_MAX
@@ -24,6 +25,10 @@ enum process_state {
 struct task_struct {
     int pid;
     int uid;
+    int euid;
+    int suid;
+    int pgid;
+    int sid;
     uint32_t cr3;
     uint32_t esp;
     uint32_t esp0;
@@ -35,6 +40,8 @@ struct task_struct {
     struct list_head ready;
     struct user_vblock_tree vblocks;
     struct mapping_file_tree mapping_files;
+    uint32_t sig_pending;
+    sighandler_t sig_handlers[SIG_MAX];
     uint8_t state;
     // signal queue..
 };
@@ -84,16 +91,14 @@ static inline void schedule(void)
     struct task_struct *next_task;
 
     next_task = list_next_entry(current, ready);
+    next_task->time_slice_remaining = DEFAULT_TIMESLICE;
     switch_to_task(next_task);
 };
 
 static inline void yield(void)
 {
-    struct task_struct *next_task;
-
-    next_task = list_next_entry(current, ready);
     ready_queue_dequeue(current);
-    switch_to_task(next_task);
+    schedule();
 };
 
 #endif

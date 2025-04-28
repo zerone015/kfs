@@ -12,6 +12,58 @@
 #include "errno.h"
 #include "exec.h"
 
+static inline bool has_kill_permission(struct task_struct *target)
+{
+    if (current->uid == 0 || current->euid == 0)
+        return true;
+    if (current->uid == target->uid || current->uid == target->suid \
+        || current->euid == target->uid || current->euid == target->suid)
+        return true;
+    return false;
+}
+
+static inline int kill_one(int pid, int sig)
+{
+    struct task_struct *target;
+
+    if (pid == INIT_PROCESS_PID)
+        return -EPERM;
+    if (pid >= PID_MAX)
+        return -ESRCH;
+    target = pid_table_lookup(pid);
+    if (!target)
+        return -ESRCH;
+    if (!has_kill_permission(target))
+        return -EPERM;
+    signal_send(target, sig);
+    return 0;
+}
+
+static inline int kill_many(int pid, int sig)
+{
+    struct task_struct *target;
+    bool found, sent;
+
+    found = sent = false;
+    for (int i = INIT_PROCESS_PID + 1; i < PID_TABLE_MAX; i++) {
+        target = pid_table_lookup(i);
+        if (!target)
+            continue;
+        if (pid == -1 || target->pgid == current->pgid || target->pgid == -pid) {
+            found = true;
+            if (has_kill_permission(target)) {
+                signal_send(target, sig);
+                sent = true;
+            }
+        }
+    }
+    if (!found)
+        return -ESRCH;
+    if (!sent)
+        return -EPERM;
+    return 0;
+}
+
 static inline void forget_original_parent(struct task_struct *task)
 {
     task->parent = pid_table_lookup(INIT_PROCESS_PID);
@@ -158,74 +210,81 @@ static inline void kernel_stack_setup(struct task_struct *child)
     child->esp = (uint32_t)&c_stack_top[-13];
 }
 
-static inline int create_child(struct task_struct **out_child)
+static inline int task_clone(struct task_struct **out_new)
 {
-    struct task_struct *child;
+    struct task_struct *new;
     int ret = -ENOMEM;
 
-    child = kmalloc(sizeof(struct task_struct));
-    if (!child)
+    new = kmalloc(sizeof(struct task_struct));
+    if (!new)
         goto out;
 
-    child->pid = alloc_pid();
-    if (child->pid == PID_NONE) {
+    new->pid = alloc_pid();
+    if (new->pid == PID_NONE) {
         ret = -EAGAIN;
-        goto out_clean_child;
+        goto out_clean_new;
     }
-    child->uid = child->pid; //stub
+    new->uid = current->uid;
+    new->euid = current->euid;
+    new->suid = current->suid;
+    new->pgid = current->pgid;
+    new->sid = current->sid;
     
-    child->esp0 = (uint32_t)kmalloc(KERNEL_STACK_SIZE);
-    if (!child->esp0)
+    new->esp0 = (uint32_t)kmalloc(KERNEL_STACK_SIZE);
+    if (!new->esp0)
         goto out_clean_pid;
-    child->esp0 += KERNEL_STACK_SIZE;    
-    kernel_stack_setup(child);
+    new->esp0 += KERNEL_STACK_SIZE;    
+    kernel_stack_setup(new);
     
-    child->vblocks.by_base = RB_ROOT;
-    child->vblocks.by_size = RB_ROOT;
-    if (vblocks_clone(&child->vblocks) < 0)
+    new->vblocks.by_base = RB_ROOT;
+    new->vblocks.by_size = RB_ROOT;
+    if (vblocks_clone(&new->vblocks) < 0)
         goto out_clean_vblocks_and_kstack;
     
-    child->mapping_files.by_base = RB_ROOT;
-    if (mapping_files_clone(&child->mapping_files) < 0)
+    new->mapping_files.by_base = RB_ROOT;
+    if (mapping_files_clone(&new->mapping_files) < 0)
         goto out_clean_mapping_files;
 
     pages_set_cow();
-    child->cr3 = pgdir_clone();
+    new->cr3 = pgdir_clone();
+
+    memcpy32(new->sig_handlers, current->sig_handlers, sizeof(current->sig_handlers) / 4);
+    new->sig_pending = 0;
     
-    child->time_slice_remaining = DEFAULT_TIMESLICE;
-    child->parent = current;
-    child->state = PROCESS_READY;
+    new->time_slice_remaining = DEFAULT_TIMESLICE;
+    new->parent = current;
+    new->state = PROCESS_READY;
 
-    init_list_head(&child->children);
+    init_list_head(&new->children);
 
-    *out_child = child;
+    *out_new = new;
     return 0;
 
 out_clean_mapping_files:
-    mapping_files_clean(&child->mapping_files, false, false);
+    mapping_files_clean(&new->mapping_files, false, false);
 out_clean_vblocks_and_kstack:
-    vblocks_clean(&child->vblocks);
-    kfree((void *)(child->esp0 - KERNEL_STACK_SIZE));
+    vblocks_clean(&new->vblocks);
+    kfree((void *)(new->esp0 - KERNEL_STACK_SIZE));
 out_clean_pid:
-    free_pid(child->pid);
-out_clean_child:
-    kfree(child);
+    free_pid(new->pid);
+out_clean_new:
+    kfree(new);
 out:
     return ret;
 }
 
 static inline int sys_fork(void)
 {
-    struct task_struct *child;
+    struct task_struct *new;
     int ret;
 
-    ret = create_child(&child);
+    ret = task_clone(&new);
     if (ret < 0)
         return ret;
-    add_child_to_parent(current, child);
-    pid_table_register(child);
-    ready_queue_enqueue(child);
-    return child->pid;
+    add_child_to_parent(current, new);
+    pid_table_register(new);
+    ready_queue_enqueue(new);
+    return new->pid;
 }
 
 static inline int sys_wait(int *status)
@@ -270,9 +329,34 @@ static inline void __attribute__((noreturn)) sys_exit(int status)
     __builtin_unreachable();
 }
 
+static inline int sys_getpid(void)
+{
+    return current->pid;
+}
+
 static inline int sys_getuid(void)
 {
     return current->uid;
+}
+
+static inline int sys_signal(int sig, uintptr_t handler)
+{
+    sighandler_t old;
+
+    if (!signal_is_valid(sig) || !signal_is_catchable(sig))
+        return -EINVAL;
+    old = sig_handler_lookup(sig);
+    sig_handler_register(sig, (sighandler_t)handler);
+    return (int)old;
+}
+
+static inline int sys_kill(int pid, int sig)
+{
+    if (sig != 0 && !signal_is_valid(sig))
+        return -EINVAL;
+    if (pid > 0)
+        return kill_one(pid, sig);
+    return kill_many(pid, sig);
 }
 
 int syscall_dispatch(struct syscall_frame sframe)
@@ -292,8 +376,17 @@ int syscall_dispatch(struct syscall_frame sframe)
     case SYS_wait:
         ret = sys_wait((int *)sframe.arg1);
         break;
+    case SYS_getpid:
+        ret = sys_getpid();
+        break;
     case SYS_getuid:
         ret = sys_getuid();
+        break;
+    case SYS_kill:
+        ret = sys_kill(sframe.arg1, sframe.arg2);
+        break;
+    case SYS_signal:
+        ret = sys_signal(sframe.arg1, sframe.arg2);
         break;
     }
     return ret;

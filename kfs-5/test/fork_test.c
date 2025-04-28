@@ -45,7 +45,7 @@ void init_process_code(void)
 				fork_return_error(pid);
 			} if (pid == 0) {
 				magic_number++;
-				if (getuid() != child_pid || magic_number != FORK_MAGIC_NUMBER + 1)
+				if (getpid() != child_pid || magic_number != FORK_MAGIC_NUMBER + 1)
 					fail();
 				while (true);
 			} else {
@@ -69,7 +69,7 @@ void init_process_code(void)
 	// 		fork_return_error(pid);
 	// 	if (pid == 0) {
 	// 		magic_number++;
-	// 		if (getuid() != child_pid || magic_number != FORK_MAGIC_NUMBER + 1)
+	// 		if (getpid() != child_pid || magic_number != FORK_MAGIC_NUMBER + 1)
 	// 			fail();
 	// 		child_pid++;
 	// 		pid = fork();
@@ -77,7 +77,7 @@ void init_process_code(void)
 	// 			fork_return_error(pid);
 	// 		if (pid == 0) {
 	// 			magic_number++;
-	// 			if (getuid() != child_pid || magic_number != FORK_MAGIC_NUMBER + 2)
+	// 			if (getpid() != child_pid || magic_number != FORK_MAGIC_NUMBER + 2)
 	// 				fail();
 	// 			while (true);
 	// 		}

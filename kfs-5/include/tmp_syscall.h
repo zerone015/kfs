@@ -52,6 +52,19 @@ static inline int __attribute__((always_inline)) write(const char *msg)
 	return ret;
 }
 
+static inline int __attribute__((always_inline)) getpid(void)
+{
+	int ret;
+
+	__asm__ volatile (
+		"int $0x80"
+		: "=a"(ret)
+		: "a"(SYS_getpid)
+		: "memory"
+	);
+	return ret;
+}
+
 static inline int __attribute__((always_inline)) getuid(void)
 {
 	int ret;
