@@ -5,6 +5,7 @@
 #include "utils.h"
 
 #define PID_MAX     32768
+#define PGID_MAX    PID_MAX
 #define PIDMAP_MAX  (PID_MAX / 8 / 4)
 #define PID_NONE    -1
 

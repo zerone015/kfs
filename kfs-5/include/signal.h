@@ -57,10 +57,4 @@ static inline void sig_pending_clear(struct task_struct *target, int sig)
     target->sig_pending &= ~(1 << sig);
 }
 
-static inline void signal_send(struct task_struct *target, int sig)
-{
-    if (sig != 0)
-        sig_pending_set(target, sig);
-}
-
 #endif

@@ -11,6 +11,17 @@
 #include "pid.h"
 #include "errno.h"
 #include "exec.h"
+#include "proc.h"
+
+static inline void add_child_to_parent(struct task_struct *parent, struct task_struct *child)
+{
+    list_add(&child->child, &parent->children);
+}
+
+static inline void remove_child_from_parent(struct task_struct *child)
+{
+    list_del(&child->child);
+}
 
 static inline bool has_kill_permission(struct task_struct *target)
 {
@@ -22,15 +33,48 @@ static inline bool has_kill_permission(struct task_struct *target)
     return false;
 }
 
+static inline void signal_send(struct task_struct *target, int sig)
+{
+    if (sig != 0)
+        sig_pending_set(target, sig);
+}
+
+
+static inline int kill_to_group(struct pgroup *pg, int sig)
+{
+    struct task_struct *target;
+    bool sent = false;
+
+    hlist_for_each_entry(target, &pg->members, pgroup) {
+        if (has_kill_permission(target)) {
+            signal_send(target, sig);
+            sent = true;
+        }
+    }
+    return sent ? 0 : -EPERM;
+}
+
+static inline int kill_to_all(int sig)
+{
+    struct task_struct *target;
+    bool sent = false;
+
+    list_for_each_entry(target, &process_list, procl) {
+        if (target->pid != INIT_PROCESS_PID && has_kill_permission(target)) {
+            signal_send(target, sig);
+            sent = true;
+        }
+    }
+    return sent ? 0 : -EPERM;
+}
+
 static inline int kill_one(int pid, int sig)
 {
     struct task_struct *target;
 
-    if (pid == INIT_PROCESS_PID)
-        return -EPERM;
     if (pid >= PID_MAX)
         return -ESRCH;
-    target = pid_table_lookup(pid);
+    target = process_lookup(pid);
     if (!target)
         return -ESRCH;
     if (!has_kill_permission(target))
@@ -41,33 +85,24 @@ static inline int kill_one(int pid, int sig)
 
 static inline int kill_many(int pid, int sig)
 {
-    struct task_struct *target;
-    bool found, sent;
+    struct pgroup *pg;
 
-    found = sent = false;
-    for (int i = INIT_PROCESS_PID + 1; i < PID_TABLE_MAX; i++) {
-        target = pid_table_lookup(i);
-        if (!target)
-            continue;
-        if (pid == -1 || target->pgid == current->pgid || target->pgid == -pid) {
-            found = true;
-            if (has_kill_permission(target)) {
-                signal_send(target, sig);
-                sent = true;
-            }
-        }
+    if (pid == -1)
+        return kill_to_all(sig);
+    if (pid < -1) {
+        if (-pid >= PGID_MAX || !(pg = pgroup_lookup(-pid)))
+            return -ESRCH;
     }
-    if (!found)
-        return -ESRCH;
-    if (!sent)
-        return -EPERM;
-    return 0;
+    else {
+        pg = pgroup_lookup(current->pgid);
+    }
+    return kill_to_group(pg, sig);
 }
 
-static inline void forget_original_parent(struct task_struct *task)
+static inline void forget_original_parent(struct task_struct *proc)
 {
-    task->parent = pid_table_lookup(INIT_PROCESS_PID);
-    add_child_to_parent(task->parent, task);
+    proc->parent = process_lookup(INIT_PROCESS_PID);
+    add_child_to_parent(proc->parent, proc);
 }
 
 static inline void reparent_children(struct task_struct *parent)
@@ -92,7 +127,7 @@ static inline int reap_zombie(struct task_struct *child, int *status)
     kfree((void *)(child->esp0 - KERNEL_STACK_SIZE));
 
     remove_child_from_parent(child);
-    pid_table_unregister(child->pid);
+    process_unregister(child);
     
     kfree(child);
     return ret;
@@ -210,7 +245,7 @@ static inline void kernel_stack_setup(struct task_struct *child)
     child->esp = (uint32_t)&c_stack_top[-13];
 }
 
-static inline int task_clone(struct task_struct **out_new)
+static inline int process_clone(struct task_struct **out_new)
 {
     struct task_struct *new;
     int ret = -ENOMEM;
@@ -278,11 +313,11 @@ static inline int sys_fork(void)
     struct task_struct *new;
     int ret;
 
-    ret = task_clone(&new);
+    ret = process_clone(&new);
     if (ret < 0)
         return ret;
     add_child_to_parent(current, new);
-    pid_table_register(new);
+    process_register(new);
     ready_queue_enqueue(new);
     return new->pid;
 }
@@ -316,6 +351,7 @@ out:
 
 static inline void __attribute__((noreturn)) sys_exit(int status)
 {
+    process_unregister(current);
     user_vspace_clean(&current->vblocks, &current->mapping_files, CL_MAPPING_FREE);
     reparent_children(current);
     current->state = PROCESS_ZOMBIE;

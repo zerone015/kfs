@@ -7,7 +7,7 @@
 #include "paging.h"
 #include "panic.h"
 #include "sched.h"
-#include "proc.h"
+#include "daemon.h"
 
 /* This is valid only for US QWERTY keyboards. */
 static const char key_map[128] =

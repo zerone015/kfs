@@ -1,9 +1,104 @@
 #ifndef _PROC_H
 #define _PROC_H
 
-#define INIT_PROCESS_PID        1
-#define KERNEL_STACK_SIZE       (PAGE_SIZE * 2)
+#include "list.h"
+#include "sched.h"
 
-void init_process(void);
+#define PID_HASH_BUCKETS    1024
+#define PGROUP_HASH_BUCKETS   (PID_HASH_BUCKETS / 2)
+
+struct pgroup {
+    int pgid;                   
+    struct hlist_head members;    
+    struct hlist_node node;       
+};
+
+extern struct list_head process_list;
+extern struct hlist_head process_table[PID_HASH_BUCKETS];
+extern struct hlist_head pgroup_table[PGROUP_HASH_BUCKETS];
+
+void proc_init(void);
+
+static inline void process_register(struct task_struct *proc)
+{
+    list_add(&proc->procl, &process_list);
+    hlist_add_head(&proc->proct, &process_table[proc->pid % PID_HASH_BUCKETS]);
+}
+
+static inline void process_unregister(struct task_struct *proc)
+{
+    list_del(&proc->procl);
+    hlist_del(&proc->proct);
+}
+
+static inline struct task_struct *process_lookup(int pid)
+{
+    struct hlist_head *hlist_head = &process_table[pid % PID_HASH_BUCKETS];
+    struct task_struct *cur = NULL;
+
+    hlist_for_each_entry(cur, hlist_head, proct) {
+        if (cur->pid == pid)
+            break;
+    }
+    return cur;
+}
+
+static inline void pgroup_register(struct pgroup *pg)
+{
+    hlist_add_head(&pg->node, &pgroup_table[pg->pgid % PGROUP_HASH_BUCKETS]);
+}
+
+static inline void pgroup_unregister(struct pgroup *pg)
+{
+    hlist_del(&pg->node);
+}
+
+static inline struct pgroup *pgroup_lookup(int pgid)
+{
+    struct hlist_head *hlist_head = &pgroup_table[pgid % PGROUP_HASH_BUCKETS];
+    struct pgroup *cur = NULL;
+
+    hlist_for_each_entry(cur, hlist_head, node) {
+        if (cur->pgid == pgid)
+            break;
+    }
+    return cur;
+}
+
+static inline void add_to_pgroup(struct task_struct *proc, struct pgroup *pg)
+{
+    hlist_add_head(&proc->pgroup, &pg->members);
+}
+
+static inline void remove_from_pgroup(struct task_struct *proc)
+{
+    hlist_del(&proc->pgroup);
+}
+
+static inline struct pgroup *pgroup_create(struct task_struct *leader)
+{
+    struct pgroup *new;
+
+    new = kmalloc(sizeof(struct pgroup));
+    if (!new)
+        return NULL;
+    init_hlist_head(&new->members);
+    add_to_pgroup(leader, new);
+    new->pgid = leader->pid;
+    leader->pgid = leader->pid;
+    pgroup_register(new);
+    return new;
+}
+
+static inline void pgroup_destroy(struct pgroup *pg)
+{
+    pgroup_unregister(pg);
+    kfree(pg);
+}
+
+static inline bool pgroup_empty(struct pgroup *pg)
+{
+    return hlist_empty(&pg->members);
+}
 
 #endif

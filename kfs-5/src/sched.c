@@ -4,4 +4,3 @@
 #include "exec.h"
 
 struct task_struct *current;
-struct task_struct *pid_table[PID_TABLE_MAX];

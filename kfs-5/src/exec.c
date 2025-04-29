@@ -6,7 +6,7 @@
 #include "utils.h"
 #include "panic.h"
 #include "pid.h"
-#include "proc.h"
+#include "daemon.h"
 #include "signal.h"
 
 static inline void pgdir_init(void)

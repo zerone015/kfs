@@ -10,7 +10,6 @@
 #include "signal_types.h"
 
 #define DEFAULT_TIMESLICE   10
-#define PID_TABLE_MAX       PID_MAX
 
 enum process_state {
     PROCESS_NEW,
@@ -25,9 +24,9 @@ enum process_state {
 struct task_struct {
     int pid;
     int uid;
+    int pgid;
     int euid;
     int suid;
-    int pgid;
     int sid;
     uint32_t cr3;
     uint32_t esp;
@@ -38,6 +37,9 @@ struct task_struct {
     struct list_head children;
     struct list_head child;
     struct list_head ready;
+    struct list_head procl;
+    struct hlist_node proct;
+    struct hlist_node pgroup;
     struct user_vblock_tree vblocks;
     struct mapping_file_tree mapping_files;
     uint32_t sig_pending;
@@ -47,34 +49,8 @@ struct task_struct {
 };
 
 extern struct task_struct *current;
-extern struct task_struct *pid_table[PID_TABLE_MAX];
 
 void switch_to_task(struct task_struct *next_task);
-
-static inline void pid_table_register(struct task_struct *task)
-{
-    pid_table[task->pid] = task;
-}
-
-static inline void pid_table_unregister(int pid)
-{
-    pid_table[pid] = NULL;
-}
-
-static inline struct task_struct *pid_table_lookup(int pid)
-{
-    return pid_table[pid];
-}
-
-static inline void add_child_to_parent(struct task_struct *parent, struct task_struct *child)
-{
-    list_add(&child->child, &parent->children);
-}
-
-static inline void remove_child_from_parent(struct task_struct *child)
-{
-    list_del(&child->child);
-}
 
 static inline void ready_queue_enqueue(struct task_struct *task)
 {

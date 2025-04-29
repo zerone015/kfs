@@ -1,7 +1,7 @@
 #include "printk.h"
 #include "errno.h"
 #include <stdbool.h>
-#include "proc.h"
+#include "daemon.h"
 #include "tmp_syscall.h"
 
 #define FORK_MAGIC_NUMBER	1234567

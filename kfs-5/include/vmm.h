@@ -5,7 +5,7 @@
 #include "rbtree.h"
 #include "pmm.h"
 #include "hmm.h"
-#include "proc.h"
+#include "daemon.h"
 #include <stdint.h>
 #include <stdbool.h>
 

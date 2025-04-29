@@ -10,6 +10,7 @@
 #include "panic.h"
 #include "pit.h"
 #include "sched.h"
+#include "daemon.h"
 #include "proc.h"
 #include "exec.h"
 
@@ -41,7 +42,7 @@ static inline void init_scheduler(void)
 {
     pit_init();
     tss_init();
-    pidmap_init();
+    proc_init();
     init_process(); 
 }
 
