@@ -40,7 +40,7 @@ void init_process(void)
 	proc->mapping_files.by_base = RB_ROOT;
 	
 	proc->sig_pending = 0;
-	sig_handlers_init(proc->sig_handlers);
+	signal_init(proc->sig_handlers);
 
 	init_list_head(&proc->children);
 	init_list_head(&proc->ready);

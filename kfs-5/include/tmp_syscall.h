@@ -4,7 +4,7 @@
 #include "syscall.h"
 
 #define WTERMSIG(status)     ((status) & 0x7F)
-#define WIFEXITED(status)    (WTERMSIG(status) == 0)
+#define WIFEXITED(status)    (!WTERMSIG(status))
 #define WIFSIGNALED(status)  (!WIFEXITED(status) && ((status) & 0x7F) != 0x7F)
 #define WEXITSTATUS(status)  (((status) >> 8) & 0xFF)
 #define WIFSTOPPED(status)   (((status) & 0xFF) == 0x7F)

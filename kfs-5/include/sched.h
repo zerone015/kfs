@@ -10,9 +10,10 @@
 #include "signal_types.h"
 #include <stdbool.h>
 
-#define DEFAULT_TIMESLICE   10
-#define WAITING_STATE_MASK  ((1 << PROCESS_WAIT_CHILD_PID) | (1 << PROCESS_WAIT_CHILD_PGID) | \
-                            (1 << PROCESS_WAIT_CHILD_ANY))
+#define DEFAULT_TIMESLICE       10
+#define WAITING_STATE_MASK      ((1 << PROCESS_WAIT_CHILD_PID) | (1 << PROCESS_WAIT_CHILD_PGID) | \
+                                (1 << PROCESS_WAIT_CHILD_ANY))
+#define NON_RUNNABLE_STATE_MASK (WAITING_STATE_MASK | (1 << PROCESS_STOPPED))
 
 enum process_state {
     PROCESS_NEW,
@@ -82,15 +83,20 @@ static inline void yield(void)
     schedule();
 };
 
-static inline bool state_is_waiting(struct task_struct *target)
-{
-    return WAITING_STATE_MASK & (1 << target->state);
-}
-
 static inline void wake_up(struct task_struct *task)
 {
     task->state = PROCESS_READY;
     ready_queue_enqueue(task);
+}
+
+static inline bool waiting_state(struct task_struct *target)
+{
+    return WAITING_STATE_MASK & (1 << target->state);
+}
+
+static inline bool non_runnable_state(struct task_struct *target)
+{
+    return NON_RUNNABLE_STATE_MASK & (1 << target->state);
 }
 
 #endif

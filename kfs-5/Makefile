@@ -19,7 +19,7 @@ ASM-DIR = asm
 
 SRC = $(SRC-DIR)/kernel.c $(SRC-DIR)/tty.c $(SRC-DIR)/printk.c $(SRC-DIR)/utils.c $(SRC-DIR)/pic.c $(SRC-DIR)/idt.c $(SRC-DIR)/vga.c $(SRC-DIR)/gdt.c \
 	$(SRC-DIR)/pmm.c $(SRC-DIR)/vmm.c $(SRC-DIR)/panic.c $(SRC-DIR)/interrupt.c $(SRC-DIR)/hmm.c $(SRC-DIR)/sched.c $(SRC-DIR)/rbtree.c $(SRC-DIR)/pit.c \
-	$(SRC-DIR)/pid.c $(SRC-DIR)/exec.c $(SRC-DIR)/syscall.c $(SRC-DIR)/proc.c $(SRC-DIR)/daemon.c
+	$(SRC-DIR)/pid.c $(SRC-DIR)/exec.c $(SRC-DIR)/syscall.c $(SRC-DIR)/proc.c $(SRC-DIR)/daemon.c $(SRC-DIR)/signal.c
 ASM = $(ASM-DIR)/boot.asm $(ASM-DIR)/panic.asm $(ASM-DIR)/interrupt.asm $(ASM-DIR)/syscall.asm $(ASM-DIR)/sched.asm
 OBJ = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.o) $(ASM:$(ASM-DIR)/%.asm=$(OBJ-DIR)/_%.o)
 

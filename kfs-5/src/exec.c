@@ -105,7 +105,7 @@ static void process_cleanup(void)
     user_vspace_cleanup(&current->vblocks, &current->mapping_files, 
         CL_MAPPING_FREE | CL_TLB_INVL | CL_RECYCLE);
     current->sig_pending = 0;
-    sig_handlers_init(current->sig_handlers);
+    signal_init(current->sig_handlers);
 }
 
 static void rdonly_pages_setup(void)

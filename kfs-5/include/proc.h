@@ -4,8 +4,8 @@
 #include "list.h"
 #include "sched.h"
 
-#define PID_HASH_BUCKETS    1024
-#define PGROUP_HASH_BUCKETS   (PID_HASH_BUCKETS / 2)
+#define PID_HASH_BUCKETS        1024
+#define PGROUP_HASH_BUCKETS     (PID_HASH_BUCKETS / 2)
 
 struct pgroup {
     int pgid;                   
@@ -18,6 +18,7 @@ extern struct hlist_head process_table[PID_HASH_BUCKETS];
 extern struct hlist_head pgroup_table[PGROUP_HASH_BUCKETS];
 
 void proc_init(void);
+void do_exit(int status) __attribute__((noreturn));
 
 static inline void process_register(struct task_struct *proc)
 {
@@ -99,6 +100,28 @@ static inline void pgroup_destroy(struct pgroup *pgrp)
 static inline bool pgroup_empty(struct pgroup *pgrp)
 {
     return hlist_empty(&pgrp->members);
+}
+
+static inline void add_child_to_parent(struct task_struct *child, struct task_struct *parent)
+{
+    list_add(&child->child, &parent->children);
+}
+
+static inline void remove_child_from_parent(struct task_struct *child)
+{
+    list_del(&child->child);
+}
+
+static inline void __forget_original_parent(struct task_struct *child)
+{
+    child->parent = process_lookup(INIT_PROCESS_PID);
+    add_child_to_parent(child, child->parent);
+}
+
+static inline void forget_original_parent(struct task_struct *child)
+{
+    remove_child_from_parent(child);
+    __forget_original_parent(child);
 }
 
 #endif

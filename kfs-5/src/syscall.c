@@ -13,16 +13,6 @@
 #include "exec.h"
 #include "proc.h"
 
-static void add_child_to_parent(struct task_struct *child, struct task_struct *parent)
-{
-    list_add(&child->child, &parent->children);
-}
-
-static void remove_child_from_parent(struct task_struct *child)
-{
-    list_del(&child->child);
-}
-
 static bool has_kill_permission(struct task_struct *target)
 {
     if (current->uid == 0 || current->euid == 0)
@@ -41,7 +31,7 @@ static int kill_to_group(struct pgroup *pgrp, int sig)
     hlist_for_each_entry(target, &pgrp->members, pgroup) {
         if (has_kill_permission(target)) {
             if (sig != 0)
-                sig_send(target, sig);
+                signal_send(target, sig);
             sent = true;
         }
     }
@@ -56,7 +46,7 @@ static int kill_to_all(int sig)
     list_for_each_entry(target, &process_list, procl) {
         if (target->pid != INIT_PROCESS_PID && has_kill_permission(target)) {
             if (sig != 0)
-                sig_send(target, sig);
+                signal_send(target, sig);
             sent = true;
         }
     }
@@ -75,7 +65,7 @@ static int kill_one(int pid, int sig)
     if (!has_kill_permission(target))
         return -EPERM;
     if (sig != 0)
-        sig_send(target, sig);
+        signal_send(target, sig);
     return 0;
 }
 
@@ -93,22 +83,6 @@ static int kill_many(int pid, int sig)
         pgrp = pgroup_lookup(current->pgid);
     }
     return kill_to_group(pgrp, sig);
-}
-
-static void forget_original_parent(struct task_struct *child)
-{
-    remove_child_from_parent(child);
-    child->parent = process_lookup(INIT_PROCESS_PID);
-    add_child_to_parent(child, child->parent);
-}
-
-static void reparent_children(void)
-{
-    struct task_struct *cur;
-
-    list_for_each_entry(cur, &current->children, child) {
-        forget_original_parent(cur);
-    }
 }
 
 static int reap_zombie(struct task_struct *child, int *status)
@@ -161,7 +135,7 @@ static int wait_for_child(uint8_t state, int *status, int options)
         return 0;
     current->state = state;
     yield();
-    if (has_pending_sig(current))
+    if (signal_pending(current))
         return -EINTR;
     if (current->wait_id == -1)
         return -ECHILD;
@@ -206,65 +180,6 @@ static int wait_for_any(int *status, int options)
     if (child)
         return reap_zombie(child, status);
     return wait_for_child(PROCESS_WAIT_CHILD_ANY, status, options);
-}
-
-static void resources_cleanup(void) 
-{
-    struct pgroup *pgrp;
-
-    user_vspace_cleanup(&current->vblocks, &current->mapping_files, CL_MAPPING_FREE);
-    remove_from_pgroup(current);
-    pgrp = pgroup_lookup(current->pgid);
-    if (pgroup_empty(pgrp))
-        pgroup_destroy(pgrp);
-}
-
-static void make_zombie(int status)
-{
-    current->status = (status & 0xFF) << 8;
-    current->state = PROCESS_ZOMBIE;
-}
-
-static void waiting_parent_wakeup(int wait_id)
-{
-    struct task_struct *parent = current->parent;
-
-    switch (parent->state) {
-    case PROCESS_WAIT_CHILD_ANY:
-        if (wait_id != -1 || list_empty(&parent->children)) {
-            parent->wait_id = wait_id;
-            wake_up(parent);
-        }
-        break;
-    case PROCESS_WAIT_CHILD_PID:
-        if (parent->wait_id == current->pid) {
-            parent->wait_id = wait_id;
-            wake_up(parent);
-        }
-        break;
-    case PROCESS_WAIT_CHILD_PGID:
-        if (parent->wait_id == current->pgid) {
-            parent->wait_id = wait_id;
-            wake_up(parent);
-        }
-        break;
-    }
-}
-
-static void notify_to_parent(void)
-{
-    struct task_struct *parent = current->parent;
-    
-    if (sig_is_ignored(parent, SIGCHLD)) {
-        forget_original_parent(current);
-        waiting_parent_wakeup(-1);
-    } else if (!sig_is_default(parent, SIGCHLD)) {
-        sig_pending_set(parent, SIGCHLD);
-        if (state_is_waiting(parent))
-            wake_up(parent);
-    } else {
-        waiting_parent_wakeup(current->pid);
-    }
 }
 
 static void pages_set_cow(void) 
@@ -354,7 +269,7 @@ static int mapping_files_clone(struct mapping_file_tree *mapping_files)
     return 0;
 }
 
-static void kernel_stack_setup(struct task_struct *child) 
+static void child_stack_setup(struct task_struct *child) 
 {
     uint32_t *p_stack_top = (uint32_t *)current->esp0;
     uint32_t *c_stack_top = (uint32_t *)child->esp0;
@@ -403,7 +318,7 @@ static int process_clone(struct task_struct **out_child)
     if (!child->esp0)
         goto out_clean_pid;
     child->esp0 += KERNEL_STACK_SIZE;    
-    kernel_stack_setup(child);
+    child_stack_setup(child);
     
     child->vblocks.by_base = RB_ROOT;
     child->vblocks.by_size = RB_ROOT;
@@ -478,11 +393,7 @@ static int sys_waitpid(int pid, int *status, int options)
 
 static void __attribute__((noreturn)) sys_exit(int status) 
 {
-    resources_cleanup();
-    reparent_children();
-    make_zombie(status);
-    notify_to_parent();
-    yield();
+    do_exit((status & 0xFF) << 8);
     __builtin_unreachable();
 }
 
@@ -500,16 +411,16 @@ static int sys_signal(int sig, uintptr_t handler)
 {
     sighandler_t old;
 
-    if (!sig_is_valid(sig) || !sig_is_catchable(sig))
+    if (!signal_is_valid(sig) || !signal_is_catchable(sig))
         return -EINVAL;
-    old = sig_handler_lookup(sig);
-    sig_handler_register(sig, (sighandler_t)handler);
+    old = signal_handler_lookup(sig);
+    signal_handler_register(sig, (sighandler_t)handler);
     return (int)old;
 }
 
 static int sys_kill(int pid, int sig)
 {
-    if (sig != 0 && !sig_is_valid(sig))
+    if (sig != 0 && !signal_is_valid(sig))
         return -EINVAL;
     if (pid > 0)
         return kill_one(pid, sig);

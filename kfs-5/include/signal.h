@@ -26,94 +26,88 @@
 #define SIG_DEFAULT_IGN_MASK    (1 << SIGCHLD)
 #define SIG_CATCHABLE_MASK      (SIG_VALID_MASK & ~((1 << SIGKILL) | (1 << SIGSTOP)))
 
-static inline void sig_handlers_init(sighandler_t *sig_handlers)
+void signal_send(struct task_struct *target, int sig);
+
+static inline void signal_init(sighandler_t *sig_handlers)
 {
     for (int i = 0; i < SIG_MAX; i++)
         sig_handlers[i] = SIG_DFL;
 }
 
-static inline bool sig_is_valid(int sig)
+static inline bool signal_is_valid(int sig)
 {
     return SIG_VALID_MASK & (1 << sig);
 }
 
-static inline bool sig_is_catchable(int sig)
+static inline bool signal_is_catchable(int sig)
 {
     return SIG_CATCHABLE_MASK & (1 << sig);
 }
 
-static inline sighandler_t sig_handler_lookup(int sig)
+static inline sighandler_t signal_handler_lookup(int sig)
 {
     return current->sig_handlers[sig];
 }
 
-static inline void sig_handler_register(int sig, sighandler_t handler)
+static inline void signal_handler_register(int sig, sighandler_t handler)
 {
     current->sig_handlers[sig] = handler;
 }
 
-static inline void sig_pending_set(struct task_struct *proc, int sig)
+static inline void signal_pending_set(struct task_struct *proc, int sig)
 {
     proc->sig_pending |= 1 << sig;
 }
 
-static inline void sig_pending_clear(struct task_struct *proc, int sig)
+static inline void signal_pending_clear(struct task_struct *proc, int sig)
 {
     proc->sig_pending &= ~(1 << sig);
 }
 
-static inline bool sig_is_default_ign(int sig)
+static inline bool signal_is_default_ign(int sig)
 {
     return SIG_DEFAULT_IGN_MASK & (1 << sig);
 }
 
-static inline bool sig_is_default(struct task_struct *proc, int sig)
+static inline bool signal_is_default(struct task_struct *proc, int sig)
 {
     return proc->sig_handlers[sig] == SIG_DFL;
 }
 
-static inline bool sig_is_ignored(struct task_struct *proc, int sig)
+static inline bool signal_is_ignored(struct task_struct *proc, int sig)
 {
     return proc->sig_handlers[sig] == SIG_IGN;
 }
 
-static inline bool sig_is_registered(struct task_struct *proc, int sig)
+static inline bool signal_is_registered(struct task_struct *proc, int sig)
 {
-    return !sig_is_default(proc, sig) && !sig_is_ignored(proc, sig);
+    return !signal_is_default(proc, sig) && !signal_is_ignored(proc, sig);
 }
 
-static inline bool should_send_sig(struct task_struct *target, int sig)
+static inline bool signal_sendable(struct task_struct *target, int sig)
 {
-    if (sig_is_ignored(target, sig))
+    if (signal_is_ignored(target, sig))
         return false;
-    if (sig_is_default_ign(sig) && sig_is_default(target, sig))
+    if (signal_is_default_ign(sig) && signal_is_default(target, sig))
         return false;
     return true;
 }
 
-static inline void sig_send(struct task_struct *target, int sig)
-{
-    if (sig == SIGSTOP) {
-        sig_pending_clear(target, SIGCONT);
-        sig_pending_set(target, SIGSTOP);
-    } 
-    else if (sig == SIGCONT) {
-        sig_pending_clear(target, SIGSTOP);
-        if (target->state == PROCESS_STOPPED)
-            wake_up(target);
-        if (sig_is_registered(target, sig))
-            sig_pending_set(target, sig);
-    } 
-    else if (should_send_sig(target, sig)) {
-        sig_pending_set(target, sig);
-        if (state_is_waiting(target))
-            wake_up(target);
-    }
-}
-
-static inline bool has_pending_sig(struct task_struct *proc)
+static inline bool signal_pending(struct task_struct *proc)
 {
     return proc->sig_pending;
+}
+
+static inline int pick_signal(struct task_struct *proc)
+{
+    return __builtin_clz(proc->sig_pending);
+}
+
+static inline void __signal_send(struct task_struct *target, int sig)
+{
+    signal_pending_set(target, sig);
+    if (waiting_state(target))
+        wake_up(target);
 }
 
 #endif
