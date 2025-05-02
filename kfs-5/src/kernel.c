@@ -14,7 +14,7 @@
 #include "proc.h"
 #include "exec.h"
 
-static inline void init_arch(void)
+static void init_arch(void)
 {
 	vga_init();
 	tty_init();
@@ -23,7 +23,7 @@ static inline void init_arch(void)
 	pic_init();
 }
 
-static inline void check_bootloader(multiboot_info_t *mbd, uint32_t magic)
+static void check_bootloader(multiboot_info_t *mbd, uint32_t magic)
 {
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC)
         do_panic("Invalid magic number");
@@ -31,14 +31,14 @@ static inline void check_bootloader(multiboot_info_t *mbd, uint32_t magic)
         do_panic("Invalid memory map given by GRUB bootloader");
 }
 
-static inline void init_memory(multiboot_info_t *mbd)
+static void init_memory(multiboot_info_t *mbd)
 {
     pmm_init(mbd);              
     hmm_init(vmm_init());             
     page_ref_init();
 }
 
-static inline void init_scheduler(void)
+static void init_scheduler(void)
 {
     pit_init();
     tss_init();

@@ -7,7 +7,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
-static inline void print_hex(va_list *ap, const char *base)
+static void print_hex(va_list *ap, const char *base)
 {
 	char buf[8];
 	unsigned int n;
@@ -18,7 +18,7 @@ static inline void print_hex(va_list *ap, const char *base)
 	tty_write(buf, len);
 }
 
-static inline void print_u_decimal(va_list *ap)
+static void print_u_decimal(va_list *ap)
 {
 	char buf[10];
 	unsigned int n;
@@ -30,7 +30,7 @@ static inline void print_u_decimal(va_list *ap)
 	tty_write(buf, len);
 }
 
-static inline void print_decimal(va_list *ap)
+static void print_decimal(va_list *ap)
 {
 	char buf[11];
 	int n;
@@ -46,7 +46,7 @@ static inline void print_decimal(va_list *ap)
 	tty_write(buf, len);
 }
 
-static inline void print_address(va_list *ap)
+static void print_address(va_list *ap)
 {
 	char buf[18];
 	size_t n;
@@ -59,7 +59,7 @@ static inline void print_address(va_list *ap)
 	tty_write(buf, len + 2);
 }
 
-static inline void print_str(va_list *ap)
+static void print_str(va_list *ap)
 {
 	char	*str;
 	size_t	len;
@@ -71,7 +71,7 @@ static inline void print_str(va_list *ap)
 	tty_write(str, len);
 }
 
-static inline void print_char(va_list *ap)
+static void print_char(va_list *ap)
 {
 	char	c;
 

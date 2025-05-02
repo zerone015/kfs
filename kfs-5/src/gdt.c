@@ -16,7 +16,7 @@ static void gdt_set_entry(size_t idx, uint32_t limit, uint32_t base, uint8_t acc
 	gdt[idx].base_high = base >> 24;
 }
 
-static inline void gdt_load(struct gdt_ptr *gdt_ptr)
+static void gdt_load(struct gdt_ptr *gdt_ptr)
 {
 	__asm__ (
         "lgdt (%0)\n\t"

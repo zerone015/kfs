@@ -9,17 +9,22 @@
 #define	SIG_DFL	 ((sighandler_t)  0)
 #define	SIG_IGN	 ((sighandler_t)  1)
 
-#define	SIGINT		2	/* Interactive attention signal.  */
-#define	SIGILL		4	/* Illegal instruction.  */
-#define	SIGABRT		6	/* Abnormal termination.  */
-#define	SIGFPE		8	/* Erroneous arithmetic operation.  */
-#define	SIGKILL		9	/* Killed.  */
-#define	SIGSEGV		11	/* Invalid access to storage.  */
-#define	SIGTERM		15	/* Termination request.  */
+#define	SIGINT		2	
+#define	SIGILL		4	
+#define	SIGABRT		6	
+#define	SIGFPE		8	
+#define	SIGKILL		9	
+#define	SIGSEGV		11	
+#define	SIGTERM		15	
 #define SIGCHLD		17
+#define SIGCONT		18
+#define SIGSTOP     19
 
-#define SIG_VALID_MASK  ((1 << SIGINT) | (1 << SIGILL) | (1 << SIGABRT) | (1 << SIGFPE) \
-                    | (1 << SIGKILL) | (1 << SIGSEGV) | (1 << SIGTERM) | (1 << SIGCHLD))
+#define SIG_VALID_MASK          ((1 << SIGINT) | (1 << SIGILL) | (1 << SIGABRT) | (1 << SIGFPE) \
+                                | (1 << SIGKILL) | (1 << SIGSEGV) | (1 << SIGTERM) | (1 << SIGCHLD) \
+                                | (1 << SIGSTOP) | (1 << SIGCONT))
+#define SIG_DEFAULT_IGN_MASK    (1 << SIGCHLD)
+#define SIG_CATCHABLE_MASK      (SIG_VALID_MASK & ~((1 << SIGKILL) | (1 << SIGSTOP)))
 
 static inline void sig_handlers_init(sighandler_t *sig_handlers)
 {
@@ -27,14 +32,14 @@ static inline void sig_handlers_init(sighandler_t *sig_handlers)
         sig_handlers[i] = SIG_DFL;
 }
 
-static inline bool signal_is_valid(int sig)
+static inline bool sig_is_valid(int sig)
 {
     return SIG_VALID_MASK & (1 << sig);
 }
 
-static inline bool signal_is_catchable(int sig)
+static inline bool sig_is_catchable(int sig)
 {
-    return sig != SIGKILL;
+    return SIG_CATCHABLE_MASK & (1 << sig);
 }
 
 static inline sighandler_t sig_handler_lookup(int sig)
@@ -47,14 +52,68 @@ static inline void sig_handler_register(int sig, sighandler_t handler)
     current->sig_handlers[sig] = handler;
 }
 
-static inline void sig_pending_set(struct task_struct *target, int sig)
+static inline void sig_pending_set(struct task_struct *proc, int sig)
 {
-    target->sig_pending |= 1 << sig;
+    proc->sig_pending |= 1 << sig;
 }
 
-static inline void sig_pending_clear(struct task_struct *target, int sig)
+static inline void sig_pending_clear(struct task_struct *proc, int sig)
 {
-    target->sig_pending &= ~(1 << sig);
+    proc->sig_pending &= ~(1 << sig);
+}
+
+static inline bool sig_is_default_ign(int sig)
+{
+    return SIG_DEFAULT_IGN_MASK & (1 << sig);
+}
+
+static inline bool sig_is_default(struct task_struct *proc, int sig)
+{
+    return proc->sig_handlers[sig] == SIG_DFL;
+}
+
+static inline bool sig_is_ignored(struct task_struct *proc, int sig)
+{
+    return proc->sig_handlers[sig] == SIG_IGN;
+}
+
+static inline bool sig_is_registered(struct task_struct *proc, int sig)
+{
+    return !sig_is_default(proc, sig) && !sig_is_ignored(proc, sig);
+}
+
+static inline bool should_send_sig(struct task_struct *target, int sig)
+{
+    if (sig_is_ignored(target, sig))
+        return false;
+    if (sig_is_default_ign(sig) && sig_is_default(target, sig))
+        return false;
+    return true;
+}
+
+static inline void sig_send(struct task_struct *target, int sig)
+{
+    if (sig == SIGSTOP) {
+        sig_pending_clear(target, SIGCONT);
+        sig_pending_set(target, SIGSTOP);
+    } 
+    else if (sig == SIGCONT) {
+        sig_pending_clear(target, SIGSTOP);
+        if (target->state == PROCESS_STOPPED)
+            wake_up(target);
+        if (sig_is_registered(target, sig))
+            sig_pending_set(target, sig);
+    } 
+    else if (should_send_sig(target, sig)) {
+        sig_pending_set(target, sig);
+        if (state_is_waiting(target))
+            wake_up(target);
+    }
+}
+
+static inline bool has_pending_sig(struct task_struct *proc)
+{
+    return proc->sig_pending;
 }
 
 #endif

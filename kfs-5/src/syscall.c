@@ -13,17 +13,17 @@
 #include "exec.h"
 #include "proc.h"
 
-static inline void add_child_to_parent(struct task_struct *parent, struct task_struct *child)
+static void add_child_to_parent(struct task_struct *child, struct task_struct *parent)
 {
     list_add(&child->child, &parent->children);
 }
 
-static inline void remove_child_from_parent(struct task_struct *child)
+static void remove_child_from_parent(struct task_struct *child)
 {
     list_del(&child->child);
 }
 
-static inline bool has_kill_permission(struct task_struct *target)
+static bool has_kill_permission(struct task_struct *target)
 {
     if (current->uid == 0 || current->euid == 0)
         return true;
@@ -33,42 +33,37 @@ static inline bool has_kill_permission(struct task_struct *target)
     return false;
 }
 
-static inline void signal_send(struct task_struct *target, int sig)
-{
-    if (sig != 0)
-        sig_pending_set(target, sig);
-}
-
-
-static inline int kill_to_group(struct pgroup *pg, int sig)
+static int kill_to_group(struct pgroup *pgrp, int sig)
 {
     struct task_struct *target;
     bool sent = false;
 
-    hlist_for_each_entry(target, &pg->members, pgroup) {
+    hlist_for_each_entry(target, &pgrp->members, pgroup) {
         if (has_kill_permission(target)) {
-            signal_send(target, sig);
+            if (sig != 0)
+                sig_send(target, sig);
             sent = true;
         }
     }
     return sent ? 0 : -EPERM;
 }
 
-static inline int kill_to_all(int sig)
+static int kill_to_all(int sig)
 {
     struct task_struct *target;
     bool sent = false;
 
     list_for_each_entry(target, &process_list, procl) {
         if (target->pid != INIT_PROCESS_PID && has_kill_permission(target)) {
-            signal_send(target, sig);
+            if (sig != 0)
+                sig_send(target, sig);
             sent = true;
         }
     }
     return sent ? 0 : -EPERM;
 }
 
-static inline int kill_one(int pid, int sig)
+static int kill_one(int pid, int sig)
 {
     struct task_struct *target;
 
@@ -79,61 +74,200 @@ static inline int kill_one(int pid, int sig)
         return -ESRCH;
     if (!has_kill_permission(target))
         return -EPERM;
-    signal_send(target, sig);
+    if (sig != 0)
+        sig_send(target, sig);
     return 0;
 }
 
-static inline int kill_many(int pid, int sig)
+static int kill_many(int pid, int sig)
 {
-    struct pgroup *pg;
+    struct pgroup *pgrp;
 
     if (pid == -1)
         return kill_to_all(sig);
     if (pid < -1) {
-        if (-pid >= PGID_MAX || !(pg = pgroup_lookup(-pid)))
+        if (-pid >= PGID_MAX || !(pgrp = pgroup_lookup(-pid)))
             return -ESRCH;
     }
     else {
-        pg = pgroup_lookup(current->pgid);
+        pgrp = pgroup_lookup(current->pgid);
     }
-    return kill_to_group(pg, sig);
+    return kill_to_group(pgrp, sig);
 }
 
-static inline void forget_original_parent(struct task_struct *proc)
+static void forget_original_parent(struct task_struct *child)
 {
-    proc->parent = process_lookup(INIT_PROCESS_PID);
-    add_child_to_parent(proc->parent, proc);
+    remove_child_from_parent(child);
+    child->parent = process_lookup(INIT_PROCESS_PID);
+    add_child_to_parent(child, child->parent);
 }
 
-static inline void reparent_children(struct task_struct *parent)
+static void reparent_children(void)
 {
     struct task_struct *cur;
 
-    list_for_each_entry(cur, &parent->children, child) {
+    list_for_each_entry(cur, &current->children, child) {
         forget_original_parent(cur);
     }
 }
 
-static inline int reap_zombie(struct task_struct *child, int *status)
+static int reap_zombie(struct task_struct *child, int *status)
 {
     int ret;
     
-    ret = child->pid;
     if (status)
-        *status = child->exit_status;
-
+        *status = child->status;
     free_pid(child->pid);
     free_pages(child->cr3, PAGE_SIZE);
     kfree((void *)(child->esp0 - KERNEL_STACK_SIZE));
-
     remove_child_from_parent(child);
     process_unregister(child);
-    
+    ret = child->pid;
     kfree(child);
     return ret;
 }
 
-static inline void pages_set_cow(void) 
+static struct task_struct *find_zombie_pgid(struct task_struct *parent, int pgid, bool *found)
+{
+    struct task_struct *child;
+
+    *found = false;
+    list_for_each_entry(child, &parent->children, child) {
+        if (child->pgid == pgid) {
+            *found = true;
+            if (child->state == PROCESS_ZOMBIE)
+                return child;
+        }
+    }
+    return NULL;
+}
+
+static struct task_struct *find_zombie(struct task_struct *parent)
+{
+    struct task_struct *child;
+
+    list_for_each_entry(child, &parent->children, child) {
+        if (child->state == PROCESS_ZOMBIE)
+            return child;
+    }
+    return NULL;
+}
+
+static int wait_for_child(uint8_t state, int *status, int options)
+{
+    struct task_struct *child;
+
+    if (options == WNOHANG)
+        return 0;
+    current->state = state;
+    yield();
+    if (has_pending_sig(current))
+        return -EINTR;
+    if (current->wait_id == -1)
+        return -ECHILD;
+    child = process_lookup(current->wait_id);
+    return reap_zombie(child, status);
+}
+
+static int wait_for_pid(int pid, int *status, int options)
+{
+    struct task_struct *child;
+
+    child = process_lookup(pid);
+    if (!child || current != child->parent)
+        return -ECHILD;
+    if (child->state == PROCESS_ZOMBIE)
+        return reap_zombie(child, status);
+    current->wait_id = child->pid;
+    return wait_for_child(PROCESS_WAIT_CHILD_PID, status, options);
+}
+
+static int wait_for_pgid(int pgid, int *status, int options)
+{
+    struct task_struct *child;
+    bool found;
+    
+    child = find_zombie_pgid(current, pgid, &found);
+    if (child)
+        return reap_zombie(child, status);
+    if (!found)
+        return -ECHILD;
+    current->wait_id = pgid;
+    return wait_for_child(PROCESS_WAIT_CHILD_PGID, status, options);
+}
+
+static int wait_for_any(int *status, int options)
+{
+    struct task_struct *child;
+
+    if (list_empty(&current->children))
+        return -ECHILD;
+    child = find_zombie(current);
+    if (child)
+        return reap_zombie(child, status);
+    return wait_for_child(PROCESS_WAIT_CHILD_ANY, status, options);
+}
+
+static void resources_cleanup(void) 
+{
+    struct pgroup *pgrp;
+
+    user_vspace_cleanup(&current->vblocks, &current->mapping_files, CL_MAPPING_FREE);
+    remove_from_pgroup(current);
+    pgrp = pgroup_lookup(current->pgid);
+    if (pgroup_empty(pgrp))
+        pgroup_destroy(pgrp);
+}
+
+static void make_zombie(int status)
+{
+    current->status = (status & 0xFF) << 8;
+    current->state = PROCESS_ZOMBIE;
+}
+
+static void waiting_parent_wakeup(int wait_id)
+{
+    struct task_struct *parent = current->parent;
+
+    switch (parent->state) {
+    case PROCESS_WAIT_CHILD_ANY:
+        if (wait_id != -1 || list_empty(&parent->children)) {
+            parent->wait_id = wait_id;
+            wake_up(parent);
+        }
+        break;
+    case PROCESS_WAIT_CHILD_PID:
+        if (parent->wait_id == current->pid) {
+            parent->wait_id = wait_id;
+            wake_up(parent);
+        }
+        break;
+    case PROCESS_WAIT_CHILD_PGID:
+        if (parent->wait_id == current->pgid) {
+            parent->wait_id = wait_id;
+            wake_up(parent);
+        }
+        break;
+    }
+}
+
+static void notify_to_parent(void)
+{
+    struct task_struct *parent = current->parent;
+    
+    if (sig_is_ignored(parent, SIGCHLD)) {
+        forget_original_parent(current);
+        waiting_parent_wakeup(-1);
+    } else if (!sig_is_default(parent, SIGCHLD)) {
+        sig_pending_set(parent, SIGCHLD);
+        if (state_is_waiting(parent))
+            wake_up(parent);
+    } else {
+        waiting_parent_wakeup(current->pid);
+    }
+}
+
+static void pages_set_cow(void) 
 {
     struct mapping_file *cur, *tmp;
     struct rb_root *root;
@@ -162,7 +296,7 @@ static inline void pages_set_cow(void)
     }
 }
 
-static inline page_t pgdir_clone(void)
+static page_t pgdir_clone(void)
 {
     uint32_t *pgdir;
     void *pgtab;
@@ -185,7 +319,7 @@ static inline page_t pgdir_clone(void)
     return pgdir_page;
 }
 
-static inline int vblocks_clone(struct user_vblock_tree *vblocks)
+static int vblocks_clone(struct user_vblock_tree *vblocks)
 {
     struct user_vblock *cur, *tmp, *new;
     struct rb_root *root;
@@ -203,7 +337,7 @@ static inline int vblocks_clone(struct user_vblock_tree *vblocks)
     return 0;
 }
 
-static inline int mapping_files_clone(struct mapping_file_tree *mapping_files)
+static int mapping_files_clone(struct mapping_file_tree *mapping_files)
 {
     struct mapping_file *cur, *tmp, *new;
     struct rb_root *root;
@@ -220,7 +354,7 @@ static inline int mapping_files_clone(struct mapping_file_tree *mapping_files)
     return 0;
 }
 
-static inline void kernel_stack_setup(struct task_struct *child) 
+static void kernel_stack_setup(struct task_struct *child) 
 {
     uint32_t *p_stack_top = (uint32_t *)current->esp0;
     uint32_t *c_stack_top = (uint32_t *)child->esp0;
@@ -245,150 +379,137 @@ static inline void kernel_stack_setup(struct task_struct *child)
     child->esp = (uint32_t)&c_stack_top[-13];
 }
 
-static inline int process_clone(struct task_struct **out_new)
+static int process_clone(struct task_struct **out_child)
 {
-    struct task_struct *new;
+    struct task_struct *child;
     int ret = -ENOMEM;
 
-    new = kmalloc(sizeof(struct task_struct));
-    if (!new)
+    child = kmalloc(sizeof(struct task_struct));
+    if (!child)
         goto out;
 
-    new->pid = alloc_pid();
-    if (new->pid == PID_NONE) {
+    child->pid = alloc_pid();
+    if (child->pid == PID_NONE) {
         ret = -EAGAIN;
         goto out_clean_new;
     }
-    new->uid = current->uid;
-    new->euid = current->euid;
-    new->suid = current->suid;
-    new->pgid = current->pgid;
-    new->sid = current->sid;
+    child->uid = current->uid;
+    child->euid = current->euid;
+    child->suid = current->suid;
+    child->pgid = current->pgid;
+    child->sid = current->sid;
     
-    new->esp0 = (uint32_t)kmalloc(KERNEL_STACK_SIZE);
-    if (!new->esp0)
+    child->esp0 = (uint32_t)kmalloc(KERNEL_STACK_SIZE);
+    if (!child->esp0)
         goto out_clean_pid;
-    new->esp0 += KERNEL_STACK_SIZE;    
-    kernel_stack_setup(new);
+    child->esp0 += KERNEL_STACK_SIZE;    
+    kernel_stack_setup(child);
     
-    new->vblocks.by_base = RB_ROOT;
-    new->vblocks.by_size = RB_ROOT;
-    if (vblocks_clone(&new->vblocks) < 0)
+    child->vblocks.by_base = RB_ROOT;
+    child->vblocks.by_size = RB_ROOT;
+    if (vblocks_clone(&child->vblocks) < 0)
         goto out_clean_vblocks_and_kstack;
     
-    new->mapping_files.by_base = RB_ROOT;
-    if (mapping_files_clone(&new->mapping_files) < 0)
+    child->mapping_files.by_base = RB_ROOT;
+    if (mapping_files_clone(&child->mapping_files) < 0)
         goto out_clean_mapping_files;
 
     pages_set_cow();
-    new->cr3 = pgdir_clone();
+    child->cr3 = pgdir_clone();
 
-    memcpy32(new->sig_handlers, current->sig_handlers, sizeof(current->sig_handlers) / 4);
-    new->sig_pending = 0;
+    memcpy32(child->sig_handlers, current->sig_handlers, sizeof(current->sig_handlers) / 4);
+    child->sig_pending = 0;
     
-    new->time_slice_remaining = DEFAULT_TIMESLICE;
-    new->parent = current;
-    new->state = PROCESS_READY;
+    child->time_slice_remaining = DEFAULT_TIMESLICE;
+    child->parent = current;
+    child->state = PROCESS_READY;
 
-    init_list_head(&new->children);
+    init_list_head(&child->children);
 
-    *out_new = new;
+    *out_child = child;
     return 0;
 
 out_clean_mapping_files:
-    mapping_files_clean(&new->mapping_files, false, false);
+    mapping_files_cleanup(&child->mapping_files, false, false);
 out_clean_vblocks_and_kstack:
-    vblocks_clean(&new->vblocks);
-    kfree((void *)(new->esp0 - KERNEL_STACK_SIZE));
+    vblocks_cleanup(&child->vblocks);
+    kfree((void *)(child->esp0 - KERNEL_STACK_SIZE));
 out_clean_pid:
-    free_pid(new->pid);
+    free_pid(child->pid);
 out_clean_new:
-    kfree(new);
+    kfree(child);
 out:
     return ret;
 }
 
-static inline int sys_fork(void)
-{
-    struct task_struct *new;
-    int ret;
-
-    ret = process_clone(&new);
-    if (ret < 0)
-        return ret;
-    add_child_to_parent(current, new);
-    process_register(new);
-    ready_queue_enqueue(new);
-    return new->pid;
-}
-
-static inline int sys_wait(int *status)
+static int sys_fork(void)
 {
     struct task_struct *child;
-    int ret = -ECHILD;
+    struct pgroup *pgrp;
+    int ret;
 
-    if (list_empty(&current->children))
-        goto out;
-    list_for_each_entry(child, &current->children, child) {
-        if (child->state == PROCESS_ZOMBIE)
-            goto out_reap_zombie;
-    }
-    current->state = PROCESS_WAITING_ZOMBIE;
-    yield();
-    // if signal
-    // ret = -EINTR
-    // goto out;
-    list_for_each_entry(child, &current->children, child) {
-        if (child->state == PROCESS_ZOMBIE)
-            goto out_reap_zombie;
-    }
+    ret = process_clone(&child);
+    if (ret < 0)
+        return ret;
 
-out_reap_zombie:
-    ret = reap_zombie(child, status);
-out:
-    return ret;
+    add_child_to_parent(child, current);
+    process_register(child);
+
+    pgrp = pgroup_lookup(child->pgid);
+    add_to_pgroup(child, pgrp);
+
+    ready_queue_enqueue(child);
+    return child->pid;
 }
 
-static inline void __attribute__((noreturn)) sys_exit(int status)
+// SIGCHLD 핸들러 중 호출된 경우, 팬딩된 SIGCHLD 있는지 확인하고 있으면 clear 해야함(only 다른 좀비 자식 프로세스가 없는 경우). 
+static int sys_waitpid(int pid, int *status, int options)
 {
-    process_unregister(current);
-    user_vspace_clean(&current->vblocks, &current->mapping_files, CL_MAPPING_FREE);
-    reparent_children(current);
-    current->state = PROCESS_ZOMBIE;
-    current->exit_status = status & 0xFF;
-    // TODO: SIGCHLD
-    if (current->parent->state == PROCESS_WAITING_ZOMBIE) {
-        current->parent->state = PROCESS_READY;
-        ready_queue_enqueue(current->parent);
-    }
+    if (options != 0 && options != WNOHANG)
+        return -EINVAL;
+    if (pid > 0)
+        return wait_for_pid(pid, status, options);
+    if (pid == 0)
+        return wait_for_pgid(current->pgid, status, options);
+    if (pid < -1)
+        return pid == INT_MIN ? -ESRCH : wait_for_pgid(-pid, status, options);
+    return wait_for_any(status, options);
+}
+
+static void __attribute__((noreturn)) sys_exit(int status) 
+{
+    resources_cleanup();
+    reparent_children();
+    make_zombie(status);
+    notify_to_parent();
     yield();
     __builtin_unreachable();
 }
 
-static inline int sys_getpid(void)
+static int sys_getpid(void)
 {
     return current->pid;
 }
 
-static inline int sys_getuid(void)
+static int sys_getuid(void)
 {
     return current->uid;
 }
 
-static inline int sys_signal(int sig, uintptr_t handler)
+static int sys_signal(int sig, uintptr_t handler)
 {
     sighandler_t old;
 
-    if (!signal_is_valid(sig) || !signal_is_catchable(sig))
+    if (!sig_is_valid(sig) || !sig_is_catchable(sig))
         return -EINVAL;
     old = sig_handler_lookup(sig);
     sig_handler_register(sig, (sighandler_t)handler);
     return (int)old;
 }
 
-static inline int sys_kill(int pid, int sig)
+static int sys_kill(int pid, int sig)
 {
-    if (sig != 0 && !signal_is_valid(sig))
+    if (sig != 0 && !sig_is_valid(sig))
         return -EINVAL;
     if (pid > 0)
         return kill_one(pid, sig);
@@ -409,8 +530,8 @@ int syscall_dispatch(struct syscall_frame sframe)
         printk((const char *)sframe.arg1);
         ret = 0;
         break;
-    case SYS_wait:
-        ret = sys_wait((int *)sframe.arg1);
+    case SYS_waitpid:
+        ret = sys_waitpid(sframe.arg1, (int *)sframe.arg2, sframe.arg3);
         break;
     case SYS_getpid:
         ret = sys_getpid();

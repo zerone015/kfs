@@ -9,7 +9,7 @@
 #include "daemon.h"
 #include "signal.h"
 
-static inline void pgdir_init(void)
+static void pgdir_init(void)
 {
     int code_pdi, stack_pdi;
     uint32_t *pgdir, *pgtab;
@@ -35,7 +35,7 @@ static inline void pgdir_init(void)
         pgtab[i] = PG_RESERVED | PG_US | PG_RDWR;
 }
 
-static inline void mapping_file_tree_init(void)
+static void mapping_file_tree_init(void)
 {
     struct rb_root *root;
     struct mapping_file *new;
@@ -53,7 +53,7 @@ static inline void mapping_file_tree_init(void)
     mapping_file_add(new, root);
 }
 
-static inline void vblock_tree_init(void)
+static void vblock_tree_init(void)
 {
     struct rb_root *root;
     struct user_vblock *new;
@@ -69,14 +69,14 @@ static inline void vblock_tree_init(void)
     vblock_bysize_add(new, root);
 }
 
-static inline void user_vspace_init(void)
+static void user_vspace_init(void)
 {
     mapping_file_tree_init();
     vblock_tree_init();
     pgdir_init();
 }
 
-static inline void jmp_to_entry_point(void) {
+static void jmp_to_entry_point(void) {
     __asm__ (
         "mov %[user_ds], %%ax\n\t"
         "mov %%ax, %%ds\n\t"
@@ -100,13 +100,15 @@ static inline void jmp_to_entry_point(void) {
     );
 }
 
-static inline void task_clean()
+static void process_cleanup(void)
 {
+    user_vspace_cleanup(&current->vblocks, &current->mapping_files, 
+        CL_MAPPING_FREE | CL_TLB_INVL | CL_RECYCLE);
     current->sig_pending = 0;
     sig_handlers_init(current->sig_handlers);
 }
 
-static inline void rdonly_pages_setup(void)
+static void rdonly_pages_setup(void)
 {
     uint32_t *pte;
 
@@ -119,9 +121,7 @@ static inline void rdonly_pages_setup(void)
 
 void exec_fn(void (*func)())
 {
-    user_vspace_clean(&current->vblocks, &current->mapping_files, 
-        CL_MAPPING_FREE | CL_TLB_INVL | CL_RECYCLE);
-    task_clean();
+    process_cleanup();
     user_vspace_init();
     memcpy((void *)USER_CODE_BASE, func, USER_CODE_SIZE);
     rdonly_pages_setup();

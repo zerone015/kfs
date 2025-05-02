@@ -108,7 +108,7 @@ static inline void mapping_file_add(struct mapping_file *new, struct rb_root *ro
     rb_insert_color(&new->by_base, root);
 }
 
-static inline void vblocks_clean(struct user_vblock_tree *vblocks)
+static inline void vblocks_cleanup(struct user_vblock_tree *vblocks)
 {
     struct rb_root *root;
     struct user_vblock *cur, *tmp;
@@ -121,7 +121,7 @@ static inline void vblocks_clean(struct user_vblock_tree *vblocks)
     (&vblocks->by_size)->rb_node = NULL;
 }
 
-static inline __attribute__((always_inline)) void mapping_files_clean(struct mapping_file_tree *mapping_files, bool do_mapping_free, bool do_tlb_invl)
+static inline __attribute__((always_inline)) void mapping_files_cleanup(struct mapping_file_tree *mapping_files, bool do_mapping_free, bool do_tlb_invl)
 {
     struct mapping_file *cur, *tmp;
     struct rb_root *root;
@@ -157,7 +157,7 @@ static inline __attribute__((always_inline)) void mapping_files_clean(struct map
     root->rb_node = NULL;
 }
 
-static inline __attribute__((always_inline)) void pgdir_clean(bool do_recycle)
+static inline __attribute__((always_inline)) void pgdir_cleanup(bool do_recycle)
 {
     uint32_t *pgdir, *pgtab;
 
@@ -174,11 +174,12 @@ static inline __attribute__((always_inline)) void pgdir_clean(bool do_recycle)
     }
 }
 
-static inline __attribute__((always_inline)) void user_vspace_clean(struct user_vblock_tree *vblocks, struct mapping_file_tree *mapping_files, int flags)
+static inline __attribute__((always_inline)) void user_vspace_cleanup
+    (struct user_vblock_tree *vblocks, struct mapping_file_tree *mapping_files, int flags)
 {
-    vblocks_clean(vblocks);
-    mapping_files_clean(mapping_files, flags & CL_MAPPING_FREE, flags & CL_TLB_INVL);
-    pgdir_clean(flags & CL_RECYCLE);
+    vblocks_cleanup(vblocks);
+    mapping_files_cleanup(mapping_files, flags & CL_MAPPING_FREE, flags & CL_TLB_INVL);
+    pgdir_cleanup(flags & CL_RECYCLE);
 }
 
 static inline void *tmp_vmap(page_t page)

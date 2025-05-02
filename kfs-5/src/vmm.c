@@ -7,25 +7,25 @@
 static struct list_head vblocks;
 static struct ptr_stack ptr_stack;
 
-static inline bool stack_is_empty(struct ptr_stack *stack)
+static bool stack_is_empty(struct ptr_stack *stack)
 {
 	return stack->top == -1 ? true : false;
 }
 
-static inline void push_ptr(struct ptr_stack *stack, struct kernel_vblock *node)
+static void push_ptr(struct ptr_stack *stack, struct kernel_vblock *node)
 {
 	stack->top++;
 	stack->ptrs[stack->top] = node;
 }
 
-static inline struct kernel_vblock *pop_ptr(struct ptr_stack *stack)
+static struct kernel_vblock *pop_ptr(struct ptr_stack *stack)
 {
 	if (stack_is_empty(stack))
 		return NULL;
 	return stack->ptrs[stack->top--];
 }
 
-static inline void vblocks_init(struct kernel_vblock *vblock)
+static void vblocks_init(struct kernel_vblock *vblock)
 {
     uint32_t *pde;
 
@@ -40,20 +40,20 @@ static inline void vblocks_init(struct kernel_vblock *vblock)
     list_add(&vblock->list_head, &vblocks);
 }
 
-static inline void ptr_stack_init(struct kernel_vblock *vblock)
+static void ptr_stack_init(struct kernel_vblock *vblock)
 {
 	ptr_stack.top = -1;
     for (size_t i = 1; i < K_VBLOCK_MAX; i++) 
         push_ptr(&ptr_stack, &vblock[i]);
 }
 
-static inline void vb_allocator_init(uintptr_t mem)
+static void vb_allocator_init(uintptr_t mem)
 {
     vblocks_init((struct kernel_vblock *)mem);
     ptr_stack_init((struct kernel_vblock *)mem);
 }
 
-static inline void vb_reserve(uintptr_t v_addr, size_t size)
+static void vb_reserve(uintptr_t v_addr, size_t size)
 {
     uint32_t *pde;
     size_t i;
@@ -64,7 +64,7 @@ static inline void vb_reserve(uintptr_t v_addr, size_t size)
     pde[i] = PG_RESERVED | PG_PS | PG_RDWR;
 }
 
-static inline size_t vb_size_with_free(uintptr_t addr)
+static size_t vb_size_with_free(uintptr_t addr)
 {
     uint32_t *pde;
     size_t size;
@@ -82,7 +82,7 @@ static inline size_t vb_size_with_free(uintptr_t addr)
     return size;
 }
 
-static inline void vb_add_and_merge(uintptr_t addr, size_t size)
+static void vb_add_and_merge(uintptr_t addr, size_t size)
 {
     struct kernel_vblock *cur;
     struct kernel_vblock *new;

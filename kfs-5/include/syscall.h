@@ -12,7 +12,7 @@
 #define SYS_write       4
 #define SYS_open        5
 #define SYS_close       6
-#define SYS_wait        7       // SYS_waitpid
+#define SYS_waitpid     7       
 #define SYS_execve      11
 #define SYS_getpid      20
 #define SYS_getuid      24
@@ -22,6 +22,9 @@
 #define SYS_mmap        90
 #define SYS_munmap      91
 #define SYS_clone       120
+
+#define WNOHANG         1
+#define INT_MIN         -2147483648
 
 struct syscall_frame {
     uint32_t syscall_num;

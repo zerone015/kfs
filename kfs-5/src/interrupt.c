@@ -174,7 +174,7 @@ void gpf_handle(struct interrupt_frame iframe)
     panic_handle("general protection fault", &iframe);
 }
 
-static inline void invalid_access_handle() 
+static void invalid_access_handle() 
 {
     printk("segfault\n ");
     while (true);

@@ -5,7 +5,7 @@
 
 static struct idt_entry idt[IDT_SIZE];
 
-static inline void idt_load(struct idt_ptr *idt_ptr)
+static void idt_load(struct idt_ptr *idt_ptr)
 {
 	__asm__ (
         "lidt (%0)"

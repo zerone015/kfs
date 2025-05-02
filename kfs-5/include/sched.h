@@ -8,8 +8,11 @@
 #include "pid.h"
 #include "printk.h"
 #include "signal_types.h"
+#include <stdbool.h>
 
 #define DEFAULT_TIMESLICE   10
+#define WAITING_STATE_MASK  ((1 << PROCESS_WAIT_CHILD_PID) | (1 << PROCESS_WAIT_CHILD_PGID) | \
+                            (1 << PROCESS_WAIT_CHILD_ANY))
 
 enum process_state {
     PROCESS_NEW,
@@ -18,7 +21,9 @@ enum process_state {
     PROCESS_WAITING,
     PROCESS_STOPPED,
     PROCESS_ZOMBIE,
-    PROCESS_WAITING_ZOMBIE,
+    PROCESS_WAIT_CHILD_PID,
+    PROCESS_WAIT_CHILD_PGID,
+    PROCESS_WAIT_CHILD_ANY,
 };
 
 struct task_struct {
@@ -32,7 +37,7 @@ struct task_struct {
     uint32_t esp;
     uint32_t esp0;
     size_t time_slice_remaining;
-    int exit_status;
+    int status;
     struct task_struct *parent; 
     struct list_head children;
     struct list_head child;
@@ -45,7 +50,7 @@ struct task_struct {
     uint32_t sig_pending;
     sighandler_t sig_handlers[SIG_MAX];
     uint8_t state;
-    // signal queue..
+    int wait_id;
 };
 
 extern struct task_struct *current;
@@ -76,5 +81,16 @@ static inline void yield(void)
     ready_queue_dequeue(current);
     schedule();
 };
+
+static inline bool state_is_waiting(struct task_struct *target)
+{
+    return WAITING_STATE_MASK & (1 << target->state);
+}
+
+static inline void wake_up(struct task_struct *task)
+{
+    task->state = PROCESS_READY;
+    ready_queue_enqueue(task);
+}
 
 #endif

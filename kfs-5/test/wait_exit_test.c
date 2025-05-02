@@ -44,7 +44,7 @@ void init_process_code(void)
 		}
 		else {
 			wait_pid = wait(&status);
-			if (wait_pid != pid || status != 42)
+			if (wait_pid != pid || !WIFEXITED(status) || WEXITSTATUS(status) != 42)
 				fail();
 		}
 	}

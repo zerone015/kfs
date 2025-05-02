@@ -5,7 +5,7 @@
 #include "sched.h"
 #include <stddef.h>
 
-static inline void hex_dump(struct panic_info *panic_info)
+static void hex_dump(struct panic_info *panic_info)
 {
     uint32_t *esp;
     uint32_t *esp_top;
@@ -32,12 +32,12 @@ static inline void hex_dump(struct panic_info *panic_info)
         printk("\n");
 }
 
-static inline void panic_msg_print(const char *msg)
+static void panic_msg_print(const char *msg)
 {
     printk("Kernel panic: %s\n", msg);
 }
 
-static inline void system_halt(void)
+static void system_halt(void)
 {
     __asm__ (
         "xor %%eax, %%eax\n\t"

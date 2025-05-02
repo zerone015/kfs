@@ -10,7 +10,7 @@ static struct buddy_allocator bd_alloc;
 uint16_t *page_ref;
 uint64_t ram_size;
 
-static inline void mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
+static void mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
@@ -22,7 +22,7 @@ static inline void mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count
 	}
 }
 
-static inline void calc_ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
+static void calc_ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
@@ -33,7 +33,7 @@ static inline void calc_ram_size(multiboot_memory_map_t* mmap, size_t mmap_count
     ram_size = align_4kb_page(ram_size);
 }
 
-static inline size_t find_bitmap_size(void)
+static size_t find_bitmap_size(void)
 {
     size_t first_size;
     size_t sum;
@@ -49,7 +49,7 @@ static inline size_t find_bitmap_size(void)
     return align_4kb_page(sum);
 }
 
-static inline void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
+static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uint64_t align_addr;
 
@@ -66,7 +66,7 @@ static inline void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
 	}
 }
 
-static inline void bd_allocator_init(uintptr_t v_addr)
+static void bd_allocator_init(uintptr_t v_addr)
 {
     size_t first_size;
 
@@ -80,7 +80,7 @@ static inline void bd_allocator_init(uintptr_t v_addr)
     }
 }
 
-static inline void pages_register(multiboot_memory_map_t* mmap, size_t mmap_count)
+static void pages_register(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uintptr_t addr;
     size_t page_count;
@@ -97,7 +97,7 @@ static inline void pages_register(multiboot_memory_map_t* mmap, size_t mmap_coun
 	}
 }
 
-static inline void kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_count)
+static void kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     size_t kernel_size;
 
@@ -116,7 +116,7 @@ static inline void kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mm
 	}
 }
 
-static inline multiboot_memory_map_t *find_bitmap_memory(multiboot_memory_map_t* mmap, size_t mmap_count, size_t bitmap_size)
+static multiboot_memory_map_t *find_bitmap_memory(multiboot_memory_map_t* mmap, size_t mmap_count, size_t bitmap_size)
 {
     for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
@@ -127,7 +127,7 @@ static inline multiboot_memory_map_t *find_bitmap_memory(multiboot_memory_map_t*
     return NULL;
 }
 
-static inline uintptr_t bd_allocator_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_count)
+static uintptr_t bd_allocator_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     multiboot_memory_map_t *useful_mmap;
     size_t bitmap_size;
@@ -148,7 +148,7 @@ static inline uintptr_t bd_allocator_memory_reserve(multiboot_memory_map_t* mmap
     return v_addr;
 }
 
-static inline void page_allocator_init(multiboot_memory_map_t* mmap, size_t mmap_count)
+static void page_allocator_init(multiboot_memory_map_t* mmap, size_t mmap_count)
 {
     uintptr_t v_addr;
 
@@ -157,7 +157,7 @@ static inline void page_allocator_init(multiboot_memory_map_t* mmap, size_t mmap
     pages_register(mmap, mmap_count);
 }
 
-static inline uintptr_t mmap_pages_map(uintptr_t mmap_addr, size_t mmap_size)
+static uintptr_t mmap_pages_map(uintptr_t mmap_addr, size_t mmap_size)
 {
     uintptr_t v_addr;
 
@@ -166,7 +166,7 @@ static inline uintptr_t mmap_pages_map(uintptr_t mmap_addr, size_t mmap_size)
     return v_addr | k_addr_get_offset(mmap_addr);
 }
 
-static inline size_t find_mmap_count(size_t mmap_length)
+static size_t find_mmap_count(size_t mmap_length)
 {
     size_t mmap_count;
     size_t mmap_size;
@@ -178,13 +178,13 @@ static inline size_t find_mmap_count(size_t mmap_length)
     return mmap_count;
 }
 
-static inline void mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_map_t *src, size_t mmap_count)
+static void mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_map_t *src, size_t mmap_count)
 {
     for (size_t i = 0; i < mmap_count; i++) 
         memcpy(dest + i, src + i, sizeof(multiboot_memory_map_t));
 }
 
-static inline void mbd_mmap_pages_unmap(multiboot_info_t* mbd)
+static void mbd_mmap_pages_unmap(multiboot_info_t* mbd)
 {
     uint32_t *pde;
 
@@ -199,37 +199,37 @@ static inline void mbd_mmap_pages_unmap(multiboot_info_t* mbd)
     tlb_invl((uintptr_t)mbd);
 }
 
-static inline bool buddy_is_freeable(uint32_t *bitmap, size_t offset)
+static bool buddy_is_freeable(uint32_t *bitmap, size_t offset)
 {
     return BIT_CHECK(bitmap[offset / 32], (offset ^ 1) % 32);
 }
 
-static inline void buddy_bit_set(uint32_t *bitmap, size_t offset)
+static void buddy_bit_set(uint32_t *bitmap, size_t offset)
 {
     BIT_SET(bitmap[offset / 32], (offset ^ 1) % 32);
 }
 
-static inline void buddy_bit_clear(uint32_t *bitmap, size_t offset)
+static void buddy_bit_clear(uint32_t *bitmap, size_t offset)
 {
     BIT_CLEAR(bitmap[offset / 32], (offset ^ 1) % 32);
 }
 
-static inline void my_bit_set(uint32_t *bitmap, size_t offset)
+static void my_bit_set(uint32_t *bitmap, size_t offset)
 {
     BIT_SET(bitmap[offset / 32], offset % 32);
 }
 
-static inline void my_bit_clear(uint32_t *bitmap, size_t offset)
+static void my_bit_clear(uint32_t *bitmap, size_t offset)
 {
     BIT_CLEAR(bitmap[offset / 32], offset % 32);
 }
 
-static inline page_t calc_addr(size_t order, size_t offset)
+static page_t calc_addr(size_t order, size_t offset)
 {
     return block_size(order) * offset;   
 }
 
-static inline size_t first_set_bit_offset(uint32_t *bitmap) 
+static size_t first_set_bit_offset(uint32_t *bitmap) 
 {
     size_t i;
     size_t bit_offset;

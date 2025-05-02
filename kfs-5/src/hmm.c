@@ -3,13 +3,13 @@
 
 static struct list_head free_list[FREE_LIST_MAX];
 
-static inline void freelist_init(void)
+static void freelist_init(void)
 {
     for (size_t i = 0; i < FREE_LIST_MAX; i++)
         init_list_head(free_list + i);
 }
 
-static inline size_t freelist_idx(size_t size)
+static size_t freelist_idx(size_t size)
 {
     size_t i;
 
@@ -22,7 +22,7 @@ static inline size_t freelist_idx(size_t size)
     return i;
 }
 
-static inline void chunk_split(struct malloc_chunk *chunk, size_t remainder_size)
+static void chunk_split(struct malloc_chunk *chunk, size_t remainder_size)
 {
     struct malloc_chunk *remainder_chunk;
 
@@ -33,7 +33,7 @@ static inline void chunk_split(struct malloc_chunk *chunk, size_t remainder_size
     list_add(&remainder_chunk->list_head, free_list + freelist_idx(remainder_size));
 }
 
-static inline void heap_init(struct malloc_chunk *free_chunk, size_t size)
+static void heap_init(struct malloc_chunk *free_chunk, size_t size)
 {
     struct malloc_chunk *dummy_chunk1, *dummy_chunk2;
 
@@ -46,7 +46,7 @@ static inline void heap_init(struct malloc_chunk *free_chunk, size_t size)
     dummy_chunk2->size = PREV_INUSE;
 }
 
-static inline struct malloc_chunk *morecore(size_t size)
+static struct malloc_chunk *morecore(size_t size)
 {
     struct malloc_chunk *free_chunk;
     size_t free_chunk_size;
@@ -63,7 +63,7 @@ static inline struct malloc_chunk *morecore(size_t size)
     return free_chunk;
 }
 
-static inline struct malloc_chunk *find_fit_chunk(size_t size)
+static struct malloc_chunk *find_fit_chunk(size_t size)
 {
     struct malloc_chunk *chunk = NULL;
     size_t idx;

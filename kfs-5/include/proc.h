@@ -43,14 +43,14 @@ static inline struct task_struct *process_lookup(int pid)
     return cur;
 }
 
-static inline void pgroup_register(struct pgroup *pg)
+static inline void pgroup_register(struct pgroup *pgrp)
 {
-    hlist_add_head(&pg->node, &pgroup_table[pg->pgid % PGROUP_HASH_BUCKETS]);
+    hlist_add_head(&pgrp->node, &pgroup_table[pgrp->pgid % PGROUP_HASH_BUCKETS]);
 }
 
-static inline void pgroup_unregister(struct pgroup *pg)
+static inline void pgroup_unregister(struct pgroup *pgrp)
 {
-    hlist_del(&pg->node);
+    hlist_del(&pgrp->node);
 }
 
 static inline struct pgroup *pgroup_lookup(int pgid)
@@ -65,9 +65,9 @@ static inline struct pgroup *pgroup_lookup(int pgid)
     return cur;
 }
 
-static inline void add_to_pgroup(struct task_struct *proc, struct pgroup *pg)
+static inline void add_to_pgroup(struct task_struct *proc, struct pgroup *pgrp)
 {
-    hlist_add_head(&proc->pgroup, &pg->members);
+    hlist_add_head(&proc->pgroup, &pgrp->members);
 }
 
 static inline void remove_from_pgroup(struct task_struct *proc)
@@ -90,15 +90,15 @@ static inline struct pgroup *pgroup_create(struct task_struct *leader)
     return new;
 }
 
-static inline void pgroup_destroy(struct pgroup *pg)
+static inline void pgroup_destroy(struct pgroup *pgrp)
 {
-    pgroup_unregister(pg);
-    kfree(pg);
+    pgroup_unregister(pgrp);
+    kfree(pgrp);
 }
 
-static inline bool pgroup_empty(struct pgroup *pg)
+static inline bool pgroup_empty(struct pgroup *pgrp)
 {
-    return hlist_empty(&pg->members);
+    return hlist_empty(&pgrp->members);
 }
 
 #endif

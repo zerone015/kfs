@@ -3,6 +3,13 @@
 
 #include "syscall.h"
 
+#define WTERMSIG(status)     ((status) & 0x7F)
+#define WIFEXITED(status)    (WTERMSIG(status) == 0)
+#define WIFSIGNALED(status)  (!WIFEXITED(status) && ((status) & 0x7F) != 0x7F)
+#define WEXITSTATUS(status)  (((status) >> 8) & 0xFF)
+#define WIFSTOPPED(status)   (((status) & 0xFF) == 0x7F)
+#define WSTOPSIG(status)     (((status) >> 8) & 0xFF)
+
 static inline int __attribute__((always_inline)) fork(void)
 {
     int ret;
@@ -33,7 +40,7 @@ static inline int __attribute__((always_inline)) wait(int *status)
 	__asm__ volatile (
 		"int $0x80"
 		: "=a"(ret)
-		: "a"(SYS_wait), "b"(status)
+		: "a"(SYS_waitpid), "b"(-1), "c"(status), "d"(0)
 		: "memory"
 	);
 	return ret;

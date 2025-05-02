@@ -3,6 +3,6 @@
 
 typedef void (*sighandler_t)(int);
 
-#define SIG_MAX     18
+#define SIG_MAX     20
 
 #endif
