@@ -13,7 +13,7 @@
 #define DEFAULT_TIMESLICE       10
 #define WAITING_STATE_MASK      ((1 << PROCESS_WAIT_CHILD_PID) | (1 << PROCESS_WAIT_CHILD_PGID) | \
                                 (1 << PROCESS_WAIT_CHILD_ANY))
-#define NON_RUNNABLE_STATE_MASK (WAITING_STATE_MASK | (1 << PROCESS_STOPPED))
+#define SLEEP_STATE_MASK        (WAITING_STATE_MASK | (1 << PROCESS_STOPPED))
 
 enum process_state {
     PROCESS_NEW,
@@ -50,8 +50,9 @@ struct task_struct {
     struct mapping_file_tree mapping_files;
     uint32_t sig_pending;
     sighandler_t sig_handlers[SIG_MAX];
-    uint8_t state;
     int wait_id;
+    uint8_t state;
+    uint8_t current_signal;
 };
 
 extern struct task_struct *current;
@@ -83,10 +84,10 @@ static inline void yield(void)
     schedule();
 };
 
-static inline void wake_up(struct task_struct *task)
+static inline void sleep(struct task_struct *target, uint8_t state)
 {
-    task->state = PROCESS_READY;
-    ready_queue_enqueue(task);
+    target->state = state;
+    yield();
 }
 
 static inline bool waiting_state(struct task_struct *target)
@@ -94,9 +95,21 @@ static inline bool waiting_state(struct task_struct *target)
     return WAITING_STATE_MASK & (1 << target->state);
 }
 
-static inline bool non_runnable_state(struct task_struct *target)
+static inline bool runnable_state(struct task_struct *target)
 {
-    return NON_RUNNABLE_STATE_MASK & (1 << target->state);
+    return !(SLEEP_STATE_MASK & (1 << target->state));
+}
+
+static inline void __wake_up(struct task_struct *target)
+{
+    target->state = PROCESS_READY;
+    ready_queue_enqueue(target);
+}
+
+static inline void wake_up(struct task_struct *target)
+{
+    if (waiting_state(target))
+        __wake_up(target);
 }
 
 #endif

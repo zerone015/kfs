@@ -8,6 +8,8 @@
 #include "panic.h"
 #include "sched.h"
 #include "daemon.h"
+#include "proc.h"
+#include "signal.h"
 
 /* This is valid only for US QWERTY keyboards. */
 static const char key_map[128] =
@@ -81,104 +83,33 @@ static const char shift_key_map[128] =
     0,  /* All other keys are undefined */
 };
 
-static __attribute__((noreturn)) void panic_handle(const char *msg, struct interrupt_frame *iframe) 
+void division_error_handle(void)
 {
-    struct panic_info panic_info;
-
-    panic_info.eax = iframe->eax;
-    panic_info.ebp = iframe->ebp;
-    panic_info.ebx = iframe->ebx;
-    panic_info.ecx = iframe->ecx;
-    panic_info.edi = iframe->edi;
-    panic_info.edx = iframe->edx;
-    panic_info.eflags = iframe->eflags;
-    panic_info.eip = iframe->eip;
-    panic_info.esi = iframe->esi;
-    if (panic_is_user(iframe->cs))
-        panic_info.esp = iframe->esp + 4;
-    else
-        panic_info.esp = iframe->_esp_dummy + (offsetof(struct interrupt_frame, eflags) \
-                     - offsetof(struct interrupt_frame, eax));
-    panic(msg, &panic_info);
+    printk("divison exception\n");
+    signal_pending_set(current, SIGFPE);
 }
 
-void division_error_handle(struct interrupt_frame iframe)
+void debug_handle(void)
 {
-    panic_handle("division error exception", &iframe);
-}
-
-void debug_handle(struct interrupt_frame iframe)
-{
-    (void)iframe;
     printk("debug exception\n");
 }
 
-void nmi_handle(struct interrupt_frame iframe)
+void invalid_opcode_handle(void)
 {
-    panic_handle("fatal hardware error", &iframe);
+    printk("invalid opcode\n");
+    signal_pending_set(current, SIGILL);
 }
 
-void breakpoint_handle(struct interrupt_frame iframe)
+void device_not_avail_handle(void)
 {
-    (void)iframe;
-    printk("breakpoint exception\n");
+    printk("device not available\n");
+    signal_pending_set(current, SIGILL);
 }
 
-void overflow_handle(struct interrupt_frame iframe)
+void gpf_handle(void)
 {
-    panic_handle("overflow exception", &iframe);
-}
-
-void bound_range_handle(struct interrupt_frame iframe)
-{
-    panic_handle("bound range exception", &iframe);
-}
-
-void invalid_opcode_handle(struct interrupt_frame iframe)
-{
-    panic_handle("invalid opcode", &iframe);
-}
-
-void device_not_avail_handle(struct interrupt_frame iframe)
-{
-    panic_handle("device not available", &iframe);
-}
-
-void double_fault_handle(struct interrupt_frame iframe)
-{
-    panic_handle("double fault", &iframe);
-}
-
-void coprocessor_handle(struct interrupt_frame iframe)
-{
-    panic_handle("coprocessor segment overrun", &iframe);
-}
-
-void invalid_tss_handle(struct interrupt_frame iframe)
-{
-    panic_handle("invalid tss", &iframe);
-}
-
-void segment_not_present_handle(struct interrupt_frame iframe)
-{
-    panic_handle("segment not present", &iframe);
-}
-
-void stack_fault_handle(struct interrupt_frame iframe)
-{
-    panic_handle("stack fault", &iframe);
-}
-
-void gpf_handle(struct interrupt_frame iframe)
-{
-    panic_handle("general protection fault", &iframe);
-}
-
-static void invalid_access_handle() 
-{
-    printk("segfault\n ");
-    while (true);
-    // TODO: 프로세스 종료 루틴 연결
+    printk("general protection fault\n");
+    signal_pending_set(current, SIGILL);
 }
 
 static void cow_handle(uint32_t *pte, uintptr_t addr) 
@@ -201,70 +132,33 @@ static void cow_handle(uint32_t *pte, uintptr_t addr)
     tlb_invl(addr);
 }
 
-void page_fault_handle(struct interrupt_frame iframe) 
+void page_fault_handle(uintptr_t fault_addr, int error_code) 
 {
-    uintptr_t fault_addr;
     uint32_t *pte, *pde;
 
-    __asm__ volatile ("mov %%cr2, %0" : "=r" (fault_addr));
-    if (is_user_space(fault_addr)) {
+    if (user_space(fault_addr)) {
         if (has_pgtab(fault_addr)) {
             pte = pte_from_addr(fault_addr);
             if (is_rdwr_cow(*pte)) {
                 cow_handle(pte, fault_addr);
                 return;
             }
-            if (entry_is_reserved(iframe.error_code, *pte)) {
+            if (entry_is_reserved(*pte)) {
                 MAKE_PRESENT_PTE(*pte);
                 return;
             }
         }
-        invalid_access_handle();
     } else {
-        if (pf_is_usermode(iframe.error_code))
-            invalid_access_handle();
-        pde = pde_from_addr(fault_addr);
-        if (entry_is_reserved(iframe.error_code, *pde)) {
-            MAKE_PRESENT_PDE(*pde);
-            return;
+        if (!pf_is_usermode(error_code)) {
+            pde = pde_from_addr(fault_addr);
+            if (entry_is_reserved(*pde)) {
+                MAKE_PRESENT_PDE(*pde);
+                return;
+            }
+            do_panic("PF???????????");
         }
-        panic_handle("page fault", &iframe);
     }
-}
-
-void floating_point_handle(struct interrupt_frame iframe)
-{
-    panic_handle("floating point exception", &iframe);
-}
-
-void alignment_check_handle(struct interrupt_frame iframe)
-{
-    panic_handle("alignment check exception", &iframe);
-}
-
-void machine_check_handle(struct interrupt_frame iframe)
-{
-    panic_handle("machine check exception", &iframe);
-}
-
-void simd_floating_point_handle(struct interrupt_frame iframe)
-{
-    panic_handle("simd floating point exception", &iframe);
-}
-
-void virtualization_handle(struct interrupt_frame iframe)
-{
-    panic_handle("virtualization exception", &iframe);
-}
-
-void control_protection_handle(struct interrupt_frame iframe)
-{
-    panic_handle("control protection exception", &iframe);
-}
-
-void fpu_error_handle(struct interrupt_frame iframe)
-{
-    panic_handle("FPU error interrupt", &iframe);
+    signal_pending_set(current, SIGSEGV);
 }
 
 void pit_handle(void)

@@ -76,7 +76,8 @@ static void user_vspace_init(void)
     pgdir_init();
 }
 
-static void jmp_to_entry_point(void) {
+static void jmp_to_entry_point(void) 
+{
     __asm__ (
         "mov %[user_ds], %%ax\n\t"
         "mov %%ax, %%ds\n\t"

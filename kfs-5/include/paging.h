@@ -30,6 +30,8 @@
 #define PAGE_DIR            ((uint32_t *)0xFFFFF000)
 #define PAGE_TAB            ((uint32_t *)0xFFC00000)
 
+#define kernel_space(addr)			((uintptr_t)(addr) >= K_VSPACE_START)
+#define user_space(addr)         	((uintptr_t)(addr) < K_VSPACE_START)
 #define pgtab_from_pdi(pdi)         (current_pgtab() + (pdi*1024))
 #define addr_from_pte(p)            ((((uintptr_t)(p) & 0x003FF000) << 10) | (((uintptr_t)(p) & 0x00000FFF) << 10))
 #define pte_from_addr(addr)         ((uint32_t *)(0xFFC00000 | (((uintptr_t)(addr) & 0xFFC00000) >> 10) | (((uintptr_t)(addr) & 0x003FF000) >> 10)))
@@ -50,7 +52,6 @@
 #define addr_get_offset(addr)       ((uintptr_t)(addr) & 0x00000FFF)
 #define k_addr_erase_offset(addr)   ((uintptr_t)(addr) & 0xFFC00000)
 #define k_addr_get_offset(addr)     ((uintptr_t)(addr) & 0x003FFFFF)
-#define is_user_space(addr)         ((uintptr_t)(addr) < K_VSPACE_START)
 #define page_is_present(entry)      ((entry) & PG_PRESENT)
 
 static inline void tlb_invl(uintptr_t addr) 

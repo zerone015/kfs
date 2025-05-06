@@ -12,8 +12,9 @@
 #include "errno.h"
 #include "exec.h"
 #include "proc.h"
+#include "kernel.h"
 
-static bool has_kill_permission(struct task_struct *target)
+static bool check_kill_permission(struct task_struct *target)
 {
     if (current->uid == 0 || current->euid == 0)
         return true;
@@ -29,7 +30,7 @@ static int kill_to_group(struct pgroup *pgrp, int sig)
     bool sent = false;
 
     hlist_for_each_entry(target, &pgrp->members, pgroup) {
-        if (has_kill_permission(target)) {
+        if (check_kill_permission(target)) {
             if (sig != 0)
                 signal_send(target, sig);
             sent = true;
@@ -44,7 +45,7 @@ static int kill_to_all(int sig)
     bool sent = false;
 
     list_for_each_entry(target, &process_list, procl) {
-        if (target->pid != INIT_PROCESS_PID && has_kill_permission(target)) {
+        if (target->pid != INIT_PROCESS_PID && check_kill_permission(target)) {
             if (sig != 0)
                 signal_send(target, sig);
             sent = true;
@@ -62,7 +63,7 @@ static int kill_one(int pid, int sig)
     target = process_lookup(pid);
     if (!target)
         return -ESRCH;
-    if (!has_kill_permission(target))
+    if (!check_kill_permission(target))
         return -EPERM;
     if (sig != 0)
         signal_send(target, sig);
@@ -83,22 +84,6 @@ static int kill_many(int pid, int sig)
         pgrp = pgroup_lookup(current->pgid);
     }
     return kill_to_group(pgrp, sig);
-}
-
-static int reap_zombie(struct task_struct *child, int *status)
-{
-    int ret;
-    
-    if (status)
-        *status = child->status;
-    free_pid(child->pid);
-    free_pages(child->cr3, PAGE_SIZE);
-    kfree((void *)(child->esp0 - KERNEL_STACK_SIZE));
-    remove_child_from_parent(child);
-    process_unregister(child);
-    ret = child->pid;
-    kfree(child);
-    return ret;
 }
 
 static struct task_struct *find_zombie_pgid(struct task_struct *parent, int pgid, bool *found)
@@ -127,14 +112,38 @@ static struct task_struct *find_zombie(struct task_struct *parent)
     return NULL;
 }
 
+static int reap_zombie(struct task_struct *child, int *status)
+{
+    int ret;
+    
+    if (status) {
+        if (!user_memory_writable(status))
+            return -EFAULT;
+        *status = child->status;
+    }
+    if (current_signal(current, SIGCHLD)) {
+        if (!find_zombie(current))
+            signal_pending_clear(current, SIGCHLD);
+    }
+    free_pid(child->pid);
+    free_pages(child->cr3, PAGE_SIZE);
+    kfree((void *)(child->esp0 - KERNEL_STACK_SIZE));
+    remove_child_from_parent(child);
+    process_unregister(child);
+    ret = child->pid;
+    kfree(child);
+    return ret;
+}
+
 static int wait_for_child(uint8_t state, int *status, int options)
 {
     struct task_struct *child;
 
     if (options == WNOHANG)
         return 0;
-    current->state = state;
-    yield();
+    if (unmasked_signal_pending())
+        return -EINTR;
+    sleep(current, state);
     if (signal_pending(current))
         return -EINTR;
     if (current->wait_id == -1)
@@ -269,32 +278,31 @@ static int mapping_files_clone(struct mapping_file_tree *mapping_files)
     return 0;
 }
 
-static void child_stack_setup(struct task_struct *child) 
+static void child_stack_setup(struct task_struct *child, struct ucontext *pcontext) 
 {
-    uint32_t *p_stack_top = (uint32_t *)current->esp0;
     uint32_t *c_stack_top = (uint32_t *)child->esp0;
 
-    c_stack_top[-1] = p_stack_top[-1];   // ss
-    c_stack_top[-2] = p_stack_top[-2];   // esp
-    c_stack_top[-3] = p_stack_top[-3];   // eflags
-    c_stack_top[-4] = p_stack_top[-4];   // cs
-    c_stack_top[-5] = p_stack_top[-5];   // eip
+    c_stack_top[-1] = pcontext->ss;         // ss
+    c_stack_top[-2] = pcontext->esp;        // esp
+    c_stack_top[-3] = pcontext->eflags;     // eflags
+    c_stack_top[-4] = pcontext->cs;         // cs
+    c_stack_top[-5] = pcontext->eip;        // eip
 
-    c_stack_top[-6] = p_stack_top[-9];   // edx
-    c_stack_top[-7] = p_stack_top[-10];  // ecx
-    c_stack_top[-8] = 0;                   // eax 
+    c_stack_top[-6] = 0;                    // eax 
+    c_stack_top[-7] = pcontext->ecx;        // ecx
+    c_stack_top[-8] = pcontext->edx;        // edx
 
-    c_stack_top[-9] = (uint32_t)&child_return_address; // return address to trampoline
+    c_stack_top[-9] = (uint32_t)&fork_child_trampoline; // return address to trampoline
 
-    c_stack_top[-10] = p_stack_top[-11];  // ebx
-    c_stack_top[-11] = p_stack_top[-8];   // esi
-    c_stack_top[-12] = p_stack_top[-7];   // edi
-    c_stack_top[-13] = p_stack_top[-6];   // ebp
+    c_stack_top[-10] = pcontext->ebx;       // ebx
+    c_stack_top[-11] = pcontext->esi;       // esi
+    c_stack_top[-12] = pcontext->edi;       // edi
+    c_stack_top[-13] = pcontext->ebp;       // ebp
 
     child->esp = (uint32_t)&c_stack_top[-13];
 }
 
-static int process_clone(struct task_struct **out_child)
+static int process_clone(struct ucontext *ucontext, struct task_struct **out_child)
 {
     struct task_struct *child;
     int ret = -ENOMEM;
@@ -318,7 +326,7 @@ static int process_clone(struct task_struct **out_child)
     if (!child->esp0)
         goto out_clean_pid;
     child->esp0 += KERNEL_STACK_SIZE;    
-    child_stack_setup(child);
+    child_stack_setup(child, ucontext);
     
     child->vblocks.by_base = RB_ROOT;
     child->vblocks.by_size = RB_ROOT;
@@ -334,6 +342,7 @@ static int process_clone(struct task_struct **out_child)
 
     memcpy32(child->sig_handlers, current->sig_handlers, sizeof(current->sig_handlers) / 4);
     child->sig_pending = 0;
+    child->current_signal = 0;
     
     child->time_slice_remaining = DEFAULT_TIMESLICE;
     child->parent = current;
@@ -357,13 +366,13 @@ out:
     return ret;
 }
 
-static int sys_fork(void)
+static int sys_fork(struct ucontext *ucontext)
 {
     struct task_struct *child;
     struct pgroup *pgrp;
     int ret;
 
-    ret = process_clone(&child);
+    ret = process_clone(ucontext, &child);
     if (ret < 0)
         return ret;
 
@@ -377,7 +386,6 @@ static int sys_fork(void)
     return child->pid;
 }
 
-// SIGCHLD 핸들러 중 호출된 경우, 팬딩된 SIGCHLD 있는지 확인하고 있으면 clear 해야함(only 다른 좀비 자식 프로세스가 없는 경우). 
 static int sys_waitpid(int pid, int *status, int options)
 {
     if (options != 0 && options != WNOHANG)
@@ -413,8 +421,8 @@ static int sys_signal(int sig, uintptr_t handler)
 
     if (!signal_is_valid(sig) || !signal_is_catchable(sig))
         return -EINVAL;
-    old = signal_handler_lookup(sig);
-    signal_handler_register(sig, (sighandler_t)handler);
+    old = sighandler_lookup(sig);
+    sighandler_register(sig, (sighandler_t)handler);
     return (int)old;
 }
 
@@ -427,22 +435,44 @@ static int sys_kill(int pid, int sig)
     return kill_many(pid, sig);
 }
 
-int syscall_dispatch(struct syscall_frame sframe)
+static int sys_sigreturn(struct ucontext *ucontext)
+{
+    struct signal_frame *sf = container_of(ucontext->esp, struct signal_frame, arg);
+    
+    if (kernel_space(sf->eip) || (int)sf->eax == -EINTR)
+        do_exit(SIGSEGV);
+
+    ucontext->ecx = sf->ecx;
+    ucontext->edx = sf->edx;
+    ucontext->ebx = sf->ebx;
+    ucontext->esi = sf->esi;
+    ucontext->edi = sf->edi;
+    ucontext->ebp = sf->ebp;
+    ucontext->esp = sf->esp;
+    ucontext->eip = sf->eip;
+    ucontext->eflags = (ucontext->eflags & ~EFLAGS_USER_MASK) | (sf->eflags & EFLAGS_USER_MASK);
+
+    current_signal_clear(current);
+
+    return sf->eax;
+}
+
+int syscall_dispatch(struct ucontext *ucontext)
 {
     int ret = -ENOSYS;
 
-    switch (sframe.syscall_num) {
+    switch (ucontext->eax) {
     case SYS_exit:
-        sys_exit(sframe.arg1);
+        sys_exit(ucontext->ebx);
     case SYS_fork:
-        ret = sys_fork();
+        ret = sys_fork(ucontext);
         break;
     case SYS_write:
-        printk((const char *)sframe.arg1);
+        printk((const char *)ucontext->ebx);
         ret = 0;
         break;
     case SYS_waitpid:
-        ret = sys_waitpid(sframe.arg1, (int *)sframe.arg2, sframe.arg3);
+        ret = sys_waitpid(ucontext->ebx, (int *)ucontext->ecx, ucontext->edx);
         break;
     case SYS_getpid:
         ret = sys_getpid();
@@ -451,10 +481,13 @@ int syscall_dispatch(struct syscall_frame sframe)
         ret = sys_getuid();
         break;
     case SYS_kill:
-        ret = sys_kill(sframe.arg1, sframe.arg2);
+        ret = sys_kill(ucontext->ebx, ucontext->ecx);
         break;
     case SYS_signal:
-        ret = sys_signal(sframe.arg1, sframe.arg2);
+        ret = sys_signal(ucontext->ebx, ucontext->ecx);
+        break;
+    case SYS_sigreturn:
+        ret = sys_sigreturn(ucontext);
         break;
     }
     return ret;

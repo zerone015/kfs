@@ -38,7 +38,8 @@ void init_process(void)
 	proc->vblocks.by_base = RB_ROOT;
 	proc->vblocks.by_size = RB_ROOT;
 	proc->mapping_files.by_base = RB_ROOT;
-	
+
+	proc->current_signal = 0;
 	proc->sig_pending = 0;
 	signal_init(proc->sig_handlers);
 

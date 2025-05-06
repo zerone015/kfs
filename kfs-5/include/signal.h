@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include "signal_types.h"
 #include "sched.h"
+#include "kernel.h"
 
 #define	SIG_ERR	 ((sighandler_t) -1)
 #define	SIG_DFL	 ((sighandler_t)  0)
@@ -13,7 +14,7 @@
 #define	SIGILL		4	
 #define	SIGABRT		6	
 #define	SIGFPE		8	
-#define	SIGKILL		9	
+#define	SIGKILL		9
 #define	SIGSEGV		11	
 #define	SIGTERM		15	
 #define SIGCHLD		17
@@ -26,7 +27,17 @@
 #define SIG_DEFAULT_IGN_MASK    (1 << SIGCHLD)
 #define SIG_CATCHABLE_MASK      (SIG_VALID_MASK & ~((1 << SIGKILL) | (1 << SIGSTOP)))
 
+struct signal_frame {
+    uint32_t ret;
+    uint32_t arg;
+    uint8_t trampoline[8];
+    uint32_t esp, ebp, edi, esi, ebx, edx, ecx, eax;
+    uint32_t eip, eflags;
+};
+
+int unmasked_signal_pending(void);
 void signal_send(struct task_struct *target, int sig);
+void do_signal(int sig, struct ucontext *ucontext);
 
 static inline void signal_init(sighandler_t *sig_handlers)
 {
@@ -44,14 +55,19 @@ static inline bool signal_is_catchable(int sig)
     return SIG_CATCHABLE_MASK & (1 << sig);
 }
 
-static inline sighandler_t signal_handler_lookup(int sig)
+static inline sighandler_t sighandler_lookup(int sig)
 {
     return current->sig_handlers[sig];
 }
 
-static inline void signal_handler_register(int sig, sighandler_t handler)
+static inline void sighandler_register(int sig, sighandler_t handler)
 {
     current->sig_handlers[sig] = handler;
+}
+
+static inline int signal_pending(struct task_struct *proc)
+{
+    return proc->sig_pending;
 }
 
 static inline void signal_pending_set(struct task_struct *proc, int sig)
@@ -79,7 +95,7 @@ static inline bool signal_is_ignored(struct task_struct *proc, int sig)
     return proc->sig_handlers[sig] == SIG_IGN;
 }
 
-static inline bool signal_is_registered(struct task_struct *proc, int sig)
+static inline bool signal_is_caught(struct task_struct *proc, int sig)
 {
     return !signal_is_default(proc, sig) && !signal_is_ignored(proc, sig);
 }
@@ -93,21 +109,37 @@ static inline bool signal_sendable(struct task_struct *target, int sig)
     return true;
 }
 
-static inline bool signal_pending(struct task_struct *proc)
+static inline bool current_signal(struct task_struct *proc, int sig)
 {
-    return proc->sig_pending;
+    return proc->current_signal == sig;
 }
 
-static inline int pick_signal(struct task_struct *proc)
+static inline void current_signal_set(struct task_struct *proc, int sig)
 {
-    return __builtin_clz(proc->sig_pending);
+    proc->current_signal = sig;
+}
+
+static inline void current_signal_clear(struct task_struct *proc)
+{
+    proc->current_signal = 0;
+}
+
+static inline bool current_signal_empty(struct task_struct *proc)
+{
+    return !proc->current_signal;
 }
 
 static inline void __signal_send(struct task_struct *target, int sig)
 {
     signal_pending_set(target, sig);
-    if (waiting_state(target))
+    if (target->current_signal != sig)
         wake_up(target);
+}
+
+static inline void caught_signal_send(struct task_struct *target, int sig)
+{
+    if (signal_is_caught(target, sig))
+        __signal_send(target, sig);
 }
 
 #endif

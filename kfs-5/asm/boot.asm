@@ -48,7 +48,7 @@ _start:
     mov cr4, ecx
 
     mov ecx, cr0
-    or ecx, 0x80010000
+    or ecx, 0x80010020
     mov cr0, ecx
 
     jmp .higher_half

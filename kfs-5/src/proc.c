@@ -27,19 +27,19 @@ static void parent_wake_up(int wait_id)
     case PROCESS_WAIT_CHILD_ANY:
         if (wait_id != -1 || list_empty(&parent->children)) {
             parent->wait_id = wait_id;
-            wake_up(parent);
+            __wake_up(parent);
         }
         break;
     case PROCESS_WAIT_CHILD_PID:
         if (parent->wait_id == current->pid) {
             parent->wait_id = wait_id;
-            wake_up(parent);
+            __wake_up(parent);
         }
         break;
     case PROCESS_WAIT_CHILD_PGID:
         if (parent->wait_id == current->pgid) {
             parent->wait_id = wait_id;
-            wake_up(parent);
+            __wake_up(parent);
         }
         break;
     }

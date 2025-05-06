@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include "paging.h"
 
 #define check_flag(flags,bit)           ((flags) & (1 << (bit)))

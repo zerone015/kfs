@@ -31,54 +31,34 @@ struct interrupt_frame {
 
 #define panic_is_user(cs)               (((cs) & 0x3) == 3)
 #define pf_is_usermode(ec)              ((ec) & PF_EC_USER)
-#define entry_is_reserved(ec, entry)    (!((ec) & PF_EC_PRESENT) && ((entry) & PG_RESERVED))
+#define entry_is_reserved(entry)        (((entry) & PG_RESERVED))
 #define MAKE_PRESENT_PDE(p)             ((p) = (alloc_pages(K_PAGE_SIZE) | (((p) & PF_PDE_FLAGS_MASK) | PG_PRESENT)))
 #define MAKE_PRESENT_PTE(p)             ((p) = (alloc_pages(PAGE_SIZE) | (((p) & PF_PTE_FLAGS_MASK) | PG_PRESENT)))
 
 void division_error_handler(void);
-void division_error_handle(struct interrupt_frame iframe);
+void division_error_handle(void);
 void debug_handler(void);
-void debug_handle(struct interrupt_frame iframe);
+void debug_handle(void);
 void nmi_handler(void);
-void nmi_handle(struct interrupt_frame iframe);
 void breakpoint_handler(void);
-void breakpoint_handle(struct interrupt_frame iframe);
 void overflow_handler(void);
-void overflow_handle(struct interrupt_frame iframe);
 void bound_range_handler(void);
-void bound_range_handle(struct interrupt_frame iframe);
 void invalid_opcode_handler(void);
-void invalid_opcode_handle(struct interrupt_frame iframe);
+void invalid_opcode_handle(void);
 void device_not_avail_handler(void);
-void device_not_avail_handle(struct interrupt_frame iframe);
+void device_not_avail_handle(void);
 void double_fault_handler(void);
-void double_fault_handle(struct interrupt_frame iframe);
-void coprocessor_handler(void);
-void coprocessor_handle(struct interrupt_frame iframe);
 void invalid_tss_handler(void);
-void invalid_tss_handle(struct interrupt_frame iframe);
 void segment_not_present_handler(void);
-void segment_not_present_handle(struct interrupt_frame iframe);
 void stack_fault_handler(void);
-void stack_fault_handle(struct interrupt_frame iframe);
 void gpf_handler(void);
-void gpf_handle(struct interrupt_frame iframe);
+void gpf_handle(void);
 void page_fault_handler(void);
-void page_fault_handle(struct interrupt_frame iframe);
+void page_fault_handle(uintptr_t fault_addr, int error_code);
 void floating_point_handler(void);
-void floating_point_handle(struct interrupt_frame iframe);
 void alignment_check_handler(void);
-void alignment_check_handle(struct interrupt_frame iframe);
 void machine_check_handler(void);
-void machine_check_handle(struct interrupt_frame iframe);
 void simd_floating_point_handler(void);
-void simd_floating_point_handle(struct interrupt_frame iframe);
-void virtualization_handler(void);
-void virtualization_handle(struct interrupt_frame iframe);
-void control_protection_handler(void);
-void control_protection_handle(struct interrupt_frame iframe);
-void fpu_error_handler(void);
-void fpu_error_handle(struct interrupt_frame iframe);
 void pit_handler(void);
 void pit_handle(void);
 void keyboard_handler(void);

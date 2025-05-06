@@ -11,6 +11,8 @@ int main(void) {
     printf("%%define OFFSET_TASK_CR3 %lu\n", offsetof(struct task_struct, cr3));
     printf("%%define OFFSET_TASK_ESP %lu\n", offsetof(struct task_struct, esp));
     printf("%%define OFFSET_TASK_ESP0 %lu\n", offsetof(struct task_struct, esp0));
+    printf("%%define OFFSET_TASK_CURRENT_SIG %lu\n", offsetof(struct task_struct, current_signal));
+    printf("%%define OFFSET_TASK_SIG_PENDING %lu\n", offsetof(struct task_struct, sig_pending));
     printf("%%define OFFSET_GDT_BASE_LOW %lu\n", offsetof(struct gdt_entry, base_low));
     printf("%%define OFFSET_GDT_BASE_MID %lu\n", offsetof(struct gdt_entry, base_mid));
     printf("%%define OFFSET_GDT_BASE_HIGH %lu\n", offsetof(struct gdt_entry, base_high));

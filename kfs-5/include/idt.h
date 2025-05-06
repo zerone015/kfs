@@ -19,7 +19,6 @@
 #define INVALID_OPCODE_INT      0x6
 #define DEVICE_NOT_AVAIL_INT    0x7
 #define DOUBLE_FAULT_INT        0x8
-#define COPROCESSOR_INT         0x9
 #define INVALID_TSS_INT         0xA
 #define SEGMENT_NOT_PRESENT_INT 0xB
 #define STACK_FAULT_INT			0xC
@@ -29,8 +28,6 @@
 #define ALIGNMENT_CHECK_INT		0x11
 #define MACHINE_CHECK_INT		0x12
 #define SIMD_FLOATING_POINT_INT	0x13
-#define VIRTUALIZATION_INT		0x14
-#define CONTROL_PROTECTION_INT	0x15
 #define FPU_ERROR_INT           (PIC1_OFFSET + 13)
 #define PIT_INT                 PIC1_OFFSET
 #define KEYBOARD_INT		    (PIC1_OFFSET + 1)
