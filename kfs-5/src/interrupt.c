@@ -112,38 +112,18 @@ void gpf_handle(void)
     signal_pending_set(current, SIGILL);
 }
 
-static void cow_handle(uint32_t *pte, uintptr_t addr) 
-{
-    page_t page, new_page;
-    void *new;
-
-    page = page_from_pte(*pte);
-    if (page_is_shared(page)) {
-        new_page = alloc_pages(PAGE_SIZE);
-        new = tmp_vmap(new_page);
-        memcpy32(new, (void *)addr_erase_offset(addr), PAGE_SIZE / 4);
-        tmp_vunmap(new);
-        *pte = new_page | (*pte & 0x1FF) | PG_RDWR;
-        page_ref_dec(page);
-    } else {
-        *pte = (*pte & ~PG_COW_RDWR) | PG_RDWR;
-        page_ref_clear(page);
-    }
-    tlb_invl(addr);
-}
-
 void page_fault_handle(uintptr_t fault_addr, int error_code) 
 {
     uint32_t *pte, *pde;
 
     if (user_space(fault_addr)) {
-        if (has_pgtab(fault_addr)) {
+        if (pgtab_allocated(fault_addr)) {
             pte = pte_from_addr(fault_addr);
             if (is_rdwr_cow(*pte)) {
                 cow_handle(pte, fault_addr);
                 return;
             }
-            if (entry_is_reserved(*pte)) {
+            if (entry_reserved(*pte)) {
                 MAKE_PRESENT_PTE(*pte);
                 return;
             }
@@ -151,13 +131,14 @@ void page_fault_handle(uintptr_t fault_addr, int error_code)
     } else {
         if (!pf_is_usermode(error_code)) {
             pde = pde_from_addr(fault_addr);
-            if (entry_is_reserved(*pde)) {
+            if (entry_reserved(*pde)) {
                 MAKE_PRESENT_PDE(*pde);
                 return;
             }
             do_panic("PF???????????");
         }
     }
+    printk("segfault!\n");
     signal_pending_set(current, SIGSEGV);
 }
 

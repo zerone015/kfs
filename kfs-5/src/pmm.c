@@ -30,7 +30,7 @@ static void calc_ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
                 ram_size = mmap[i].addr + mmap[i].len;
         }
 	}
-    ram_size = align_4kb_page(ram_size);
+    ram_size = align_up(ram_size, PAGE_SIZE);
 }
 
 static size_t find_bitmap_size(void)
@@ -41,12 +41,12 @@ static size_t find_bitmap_size(void)
     sum = 0;
     first_size = bitmap_first_size(ram_size);
     for (size_t order = 0; order < MAX_ORDER; order++) {
-        sum += align_4byte(first_size);
+        sum += align_up(first_size, 4);
         first_size /= 2;
         if (first_size < 32)
             first_size = 32;
     }
-    return align_4kb_page(sum);
+    return align_up(sum, PAGE_SIZE);
 }
 
 static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
@@ -55,7 +55,7 @@ static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
 
     for (size_t i = 0; i < mmap_count; i++) {
         if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            align_addr = align_4kb_page(mmap[i].addr);
+            align_addr = align_up(mmap[i].addr, PAGE_SIZE);
             if (mmap[i].len <= align_addr - mmap[i].addr) {
                 mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
             } else {
@@ -73,7 +73,7 @@ static void bd_allocator_init(uintptr_t v_addr)
     first_size = bitmap_first_size(ram_size);
     for (size_t order = 0; order < MAX_ORDER; order++) {
         bd_alloc.orders[order].bitmap = (uint32_t *)v_addr;
-        v_addr += align_4byte(first_size);
+        v_addr += align_up(first_size, 4);
         first_size /= 2;
         if (first_size < 32)
             first_size = 32;
@@ -189,7 +189,7 @@ static void mbd_mmap_pages_unmap(multiboot_info_t* mbd)
     uint32_t *pde;
 
     pde = pde_from_addr(mbd->mmap_addr);
-    for (size_t i = 0; i < ((align_4mb_page(mbd->mmap_length) + K_PAGE_SIZE) / K_PAGE_SIZE); i++) {
+    for (size_t i = 0; i < ((align_up(mbd->mmap_length, K_PAGE_SIZE) + K_PAGE_SIZE) / K_PAGE_SIZE); i++) {
         pde[i] = 0;
         tlb_invl(mbd->mmap_addr);
         mbd->mmap_addr += K_PAGE_SIZE;

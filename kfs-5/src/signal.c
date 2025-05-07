@@ -45,13 +45,28 @@ static void do_default_signal(int sig)
     case SIGILL:
     case SIGABRT:
     case SIGFPE:
-    case SIGKILL:
+    case SIGKILL:        
     case SIGSEGV:
     case SIGTERM:
         do_exit(sig);
         break;
     case SIGSTOP:
         do_stop();
+    }
+}
+
+static void prepare_signal_frame_setup(struct signal_frame *sf) 
+{
+    uintptr_t addr = (uintptr_t)sf;
+    uint32_t *pte = pte_from_addr(sf);
+
+    if (is_rdwr_cow(*pte))
+        cow_handle(pte, addr);
+
+    uintptr_t end_addr = addr + sizeof(struct signal_frame);
+    if (align_down(addr, PAGE_SIZE) != align_down(end_addr, PAGE_SIZE)) {
+        if (is_rdwr_cow(*(pte + 1)))
+            cow_handle(pte + 1, end_addr);
     }
 }
 
@@ -77,6 +92,8 @@ static void do_caught_signal(int sig, sighandler_t sighandler, struct ucontext *
     struct signal_frame *sf; 
     
     sf = (struct signal_frame *)(ucontext->esp - sizeof(struct signal_frame));
+    
+    prepare_signal_frame_setup(sf);
     signal_frame_setup(sf, ucontext, sig);
 
     ucontext->esp = (uint32_t)sf;
@@ -86,8 +103,9 @@ static void do_caught_signal(int sig, sighandler_t sighandler, struct ucontext *
     signal_pending_clear(current, sig);
 }
 
-void do_signal(int sig, struct ucontext *ucontext)
+void do_signal(uint32_t sig_pending, struct ucontext *ucontext)
 {
+    int sig = pick_signal(sig_pending);
     sighandler_t sighandler = sighandler_lookup(sig);
     if (sighandler == SIG_DFL)
         do_default_signal(sig);
@@ -116,6 +134,6 @@ void signal_send(struct task_struct *target, int sig)
 int unmasked_signal_pending(void)
 {
     if (current_signal_empty(current))
-        return signal_pending(current);
-    return current->sig_pending & ~(1 << (current->current_signal));
+        return current->sig_pending;
+    return current->sig_pending & ~(1 << current->current_signal);
 }

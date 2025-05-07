@@ -8,6 +8,8 @@
 #define USER_STACK_TOP          (USER_STACK_BASE + USER_STACK_SIZE)
 #define USER_CODE_BASE          PAGE_SIZE
 #define USER_CODE_SIZE          (PAGE_SIZE * 2)
+#define TEST_SIGNAL_BASE        (USER_CODE_BASE + USER_CODE_SIZE)
+#define TEST_SIGNAL_SIZE        (PAGE_SIZE)
 
 #define is_code_section(addr)   (((addr) >= USER_CODE_BASE) && ((addr) < (USER_CODE_BASE + USER_CODE_SIZE)))
 

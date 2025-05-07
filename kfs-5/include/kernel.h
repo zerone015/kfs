@@ -40,19 +40,4 @@ struct ucontext {
     uint32_t esp, ss;
 };
 
-static inline bool user_memory_writable(void *mem)
-{
-    uint32_t *pde, *pte;
-
-    if (kernel_space(mem))
-        return false;
-    pde = pde_from_addr(mem);
-    if (!(*pde & PG_RDWR))
-        return false;
-    pte = pte_from_addr(mem);
-    if (!(*pte & PG_RDWR))
-        return false;
-    return true;
-}
-
 #endif

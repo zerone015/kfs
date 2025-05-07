@@ -11,7 +11,7 @@
 
 void init_process_code(void)
 {
-	write("hi~");
+    write("hi~");
 	while (true);
 }
 

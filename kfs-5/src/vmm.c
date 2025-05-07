@@ -161,7 +161,7 @@ uintptr_t pages_initmap(uintptr_t p_addr, size_t size, int flags)
     while (*pde)
         pde++;
     p_addr = k_addr_erase_offset(p_addr);
-    size = align_4mb_page(size);
+    size = align_up(size, K_PAGE_SIZE);
     for (size_t i = 0; i < (size / K_PAGE_SIZE); i++) {
         pde[i] = p_addr | flags;
         p_addr += K_PAGE_SIZE;

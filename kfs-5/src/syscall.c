@@ -112,12 +112,21 @@ static struct task_struct *find_zombie(struct task_struct *parent)
     return NULL;
 }
 
+static bool access_ok(void *addr)
+{
+    if (!user_space(addr))
+        return false;
+    if (!addr_is_mapped(addr))
+        return false;
+    return true;
+}
+
 static int reap_zombie(struct task_struct *child, int *status)
 {
     int ret;
     
     if (status) {
-        if (!user_memory_writable(status))
+        if (!access_ok(status))
             return -EFAULT;
         *status = child->status;
     }
@@ -375,7 +384,7 @@ static int sys_fork(struct ucontext *ucontext)
     ret = process_clone(ucontext, &child);
     if (ret < 0)
         return ret;
-
+    
     add_child_to_parent(child, current);
     process_register(child);
 
@@ -429,32 +438,10 @@ static int sys_signal(int sig, uintptr_t handler)
 static int sys_kill(int pid, int sig)
 {
     if (sig != 0 && !signal_is_valid(sig))
-        return -EINVAL;
+        return -EINVAL;    
     if (pid > 0)
         return kill_one(pid, sig);
     return kill_many(pid, sig);
-}
-
-static int sys_sigreturn(struct ucontext *ucontext)
-{
-    struct signal_frame *sf = container_of(ucontext->esp, struct signal_frame, arg);
-    
-    if (kernel_space(sf->eip) || (int)sf->eax == -EINTR)
-        do_exit(SIGSEGV);
-
-    ucontext->ecx = sf->ecx;
-    ucontext->edx = sf->edx;
-    ucontext->ebx = sf->ebx;
-    ucontext->esi = sf->esi;
-    ucontext->edi = sf->edi;
-    ucontext->ebp = sf->ebp;
-    ucontext->esp = sf->esp;
-    ucontext->eip = sf->eip;
-    ucontext->eflags = (ucontext->eflags & ~EFLAGS_USER_MASK) | (sf->eflags & EFLAGS_USER_MASK);
-
-    current_signal_clear(current);
-
-    return sf->eax;
 }
 
 int syscall_dispatch(struct ucontext *ucontext)
@@ -487,8 +474,7 @@ int syscall_dispatch(struct ucontext *ucontext)
         ret = sys_signal(ucontext->ebx, ucontext->ecx);
         break;
     case SYS_sigreturn:
-        ret = sys_sigreturn(ucontext);
-        break;
+        sys_sigreturn(ucontext);
     }
     return ret;
 }

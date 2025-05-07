@@ -85,4 +85,30 @@ static inline int __attribute__((always_inline)) getuid(void)
 	return ret;
 }
 
+static inline int __attribute__((always_inline)) kill(int pid, int sig)
+{
+	int ret;
+
+	__asm__ volatile (
+		"int $0x80"
+		: "=a"(ret)
+		: "a"(SYS_kill), "b"(pid), "c"(sig)
+		: "memory"
+	);
+	return ret;
+}
+
+static inline int __attribute__((always_inline)) signal(int sig, uintptr_t handler)
+{
+	int ret;
+
+	__asm__ volatile (
+		"int $0x80"
+		: "=a"(ret)
+		: "a"(SYS_signal), "b"(sig), "c"(handler)
+		: "memory"
+	);
+	return ret;
+}
+
 #endif

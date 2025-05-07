@@ -1,4 +1,6 @@
 #include "utils.h"
+#include "kernel.h"
+#include "paging.h"
 
 unsigned int abs(int n)
 {

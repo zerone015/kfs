@@ -3,6 +3,7 @@
 
 #include "multiboot.h"
 #include "paging.h"
+#include "pmm_types.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -14,8 +15,6 @@
 #define K_PLOAD_END			((size_t)(&_kernel_end))
 #define KERNEL_SIZE			(K_PLOAD_END - K_PLOAD_START)
 #define PAGE_NONE			((page_t)-1)
-
-typedef uintptr_t page_t;
 
 struct buddy_order {
 	uint32_t *bitmap;

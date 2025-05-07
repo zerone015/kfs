@@ -2,7 +2,7 @@
 
 NAME = kernel.elf
 
-CC-NATIVE = gcc
+CC-NATIVE = gcc -m32
 CC = i686-elf-gcc
 AS = nasm
 

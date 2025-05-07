@@ -56,7 +56,7 @@ static void system_halt(void)
     );
 }
 
-void __attribute__((noreturn)) panic(const char *msg, struct panic_info *panic_info)
+void panic(const char *msg, struct panic_info *panic_info)
 {
     tty_clear();
     hex_dump(panic_info);

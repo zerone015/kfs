@@ -32,5 +32,6 @@ extern char fork_child_trampoline;  // in syscall.asm
 
 int syscall_handler(void);
 int syscall_dispatch(struct ucontext *ucontext);
+void sys_sigreturn(struct ucontext *ucontext) __attribute__((noreturn));
 
 #endif

@@ -2,6 +2,23 @@ GDT_SELECTOR_CODE_PL0  equ  0x08
 
 section .rodata
 	 panic_msg db "fatal exception", 0
+	 de_panic_msg db "division error", 0
+	 db_panic_msg db "debug exception", 0
+	 nmi_panic_msg db "fatal hardware error", 0
+	 bp_panic_msg db "breakpoint exception", 0
+	 of_panic_msg db "overflow exception", 0
+	 br_panic_msg db "bound range exceeded", 0
+	 ud_panic_msg db "invalid opcode", 0
+	 nm_panic_msg db "devide not available", 0
+	 df_panic_msg db "double fault", 0
+	 ts_panic_msg db "invalid tss", 0
+	 np_panic_msg db "segment not present", 0
+	 ss_panic_msg db "stack segment fault", 0
+	 gp_panic_msg db "general protection fault", 0
+	 mf_panic_msg db "floating-point exception", 0
+	 ac_panic_msg db "alignment check", 0
+	 mc_panic_msg db "machine check", 0
+	 xm_panic_msg db "simd floating-point exception", 0
 section .text
 extern panic
 extern unmasked_signal_pending
@@ -54,7 +71,7 @@ division_error_handler:
 	cld
 	cmp dword [esp + 4], GDT_SELECTOR_CODE_PL0
 	jne .division_error_handle
-	push panic_msg
+	push de_panic_msg
 	call isr_panic
 .division_error_handle:
 	push eax
@@ -83,7 +100,7 @@ debug_handler:
 	cld
 	cmp dword [esp + 4], GDT_SELECTOR_CODE_PL0
 	jne .debug_handle
-	push panic_msg
+	push db_panic_msg
 	call isr_panic
 .debug_handle:
 	push eax
@@ -110,25 +127,25 @@ debug_handler:
 	iretd
 nmi_handler:
 	cld
-	push panic_msg
+	push nmi_panic_msg
 	call isr_panic
 breakpoint_handler:
 	cld
-	push panic_msg
+	push bp_panic_msg 
 	call isr_panic
 overflow_handler:
 	cld
-	push panic_msg
+	push of_panic_msg
 	call isr_panic
 bound_range_handler:
 	cld
-	push panic_msg
+	push br_panic_msg
 	call isr_panic
 invalid_opcode_handler:
 	cld
 	cmp dword [esp + 4], GDT_SELECTOR_CODE_PL0
 	jne .invalid_opcode_handle
-	push panic_msg
+	push ud_panic_msg
 	call isr_panic
 .invalid_opcode_handle:
 	push eax
@@ -157,7 +174,7 @@ device_not_avail_handler:
 	cld
 	cmp dword [esp + 4], GDT_SELECTOR_CODE_PL0
 	jne .device_not_avail_handle
-	push panic_msg
+	push nm_panic_msg
 	call isr_panic
 .device_not_avail_handle:
 	push eax
@@ -185,29 +202,29 @@ device_not_avail_handler:
 double_fault_handler:
 	cld
 	add esp, 4
-	push panic_msg
+	push df_panic_msg
 	call isr_panic
 invalid_tss_handler:
 	cld
 	add esp, 4
-	push panic_msg
+	push ts_panic_msg
 	call isr_panic
 segment_not_present_handler:
 	cld
 	add esp, 4
-	push panic_msg
+	push np_panic_msg
 	call isr_panic
 stack_fault_handler:
 	cld
 	add esp, 4
-	push panic_msg
+	push ss_panic_msg
 	call isr_panic
 gpf_handler:
 	cld
 	add esp, 4
 	cmp dword [esp + 4], GDT_SELECTOR_CODE_PL0
 	jne .gpf_handle
-	push panic_msg
+	push gp_panic_msg
 	call isr_panic
 .gpf_handle:
 	push eax
@@ -263,20 +280,20 @@ page_fault_handler:
 	iretd
 floating_point_handler:
 	cld
-	push panic_msg
+	push mf_panic_msg
 	call isr_panic
 alignment_check_handler:
 	cld
 	add esp, 4
-	push panic_msg
+	push ac_panic_msg
 	call isr_panic
 machine_check_handler:
 	cld
-	push panic_msg
+	push mc_panic_msg
 	call isr_panic
 simd_floating_point_handler:
 	cld
-	push panic_msg
+	push xm_panic_msg
 	call isr_panic
 pit_handler:
 	cld
@@ -287,8 +304,8 @@ pit_handler:
 .check_signal:
 	call unmasked_signal_pending	
 	cmp eax, 0						
-	je .done				
-.do_signal:
+	je .done	
+.do_signal:													
 	push ebx
 	push esi
 	push edi

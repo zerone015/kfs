@@ -8,6 +8,7 @@
 #include "pid.h"
 #include "daemon.h"
 #include "signal.h"
+#include "tmp_syscall.h"
 
 static void pgdir_init(void)
 {
