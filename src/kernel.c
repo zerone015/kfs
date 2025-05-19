@@ -13,6 +13,7 @@
 #include "daemon.h"
 #include "proc.h"
 #include "exec.h"
+#include "ata.h"
 
 static void init_arch(void)
 {
@@ -21,6 +22,7 @@ static void init_arch(void)
 	gdt_init();
 	idt_init();
 	pic_init();
+    ata_init();
 }
 
 static void check_bootloader(multiboot_info_t *mbd, uint32_t magic)

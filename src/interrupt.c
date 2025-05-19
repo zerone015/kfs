@@ -10,6 +10,7 @@
 #include "daemon.h"
 #include "proc.h"
 #include "signal.h"
+#include "ata.h"
 
 /* This is valid only for US QWERTY keyboards. */
 static const char key_map[128] =
@@ -189,4 +190,13 @@ void keyboard_handle(void)
 			shift_flag = 0;
 	}
 	pic_send_eoi(KEYBOARD_IRQ);
+}
+
+void ata_handle(void)
+{
+   outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_CMD, 0);
+   inb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_STATUS);
+   inb(channels[ATA_PRIMARY].base + ATA_REG_STATUS);
+   wake_up(process_lookup(2));
+   pic_send_eoi(PRIMARY_ATA_IRQ);
 }

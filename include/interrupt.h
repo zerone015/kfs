@@ -51,5 +51,7 @@ void pit_handler(void);
 void pit_handle(void);
 void keyboard_handler(void);
 void keyboard_handle(void);
+void primary_ata_handler(void);
+void ata_handle(void);
 
 #endif

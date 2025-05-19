@@ -28,9 +28,10 @@
 #define ALIGNMENT_CHECK_INT		0x11
 #define MACHINE_CHECK_INT		0x12
 #define SIMD_FLOATING_POINT_INT	0x13
-#define FPU_ERROR_INT           (PIC1_OFFSET + 13)
 #define PIT_INT                 PIC1_OFFSET
 #define KEYBOARD_INT		    (PIC1_OFFSET + 1)
+#define PRIMARY_ATA_INT		    (PIC1_OFFSET + 14)
+#define SECONDARY_ATA_INT		(PIC1_OFFSET + 15)
 #define SYSCALL_INT             0x80
 
 struct idt_entry {

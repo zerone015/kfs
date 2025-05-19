@@ -39,6 +39,7 @@ extern machine_check_handle
 extern simd_floating_point_handle
 extern pit_handle
 extern keyboard_handle
+extern ata_handle
 global division_error_handler
 global debug_handler
 global nmi_handler
@@ -59,6 +60,7 @@ global machine_check_handler
 global simd_floating_point_handler
 global pit_handler
 global keyboard_handler
+global primary_ata_handler
 isr_panic:
     push dword [esp + 16]           ; eflags
     push dword [esp + 8]            ; eip
@@ -325,6 +327,30 @@ keyboard_handler:
 	push ecx
 	push edx
 	call keyboard_handle
+.check_signal:
+	call unmasked_signal_pending	
+	cmp eax, 0						
+	je .done				
+.do_signal:
+	push ebx
+	push esi
+	push edi
+	push ebp
+	push esp						
+	push eax						
+	call do_signal				
+	add esp, 24
+.done:
+	pop edx
+	pop ecx
+	pop eax
+	iretd
+primary_ata_handler:
+	cld
+	push eax
+	push ecx
+	push edx
+	call ata_handle
 .check_signal:
 	call unmasked_signal_pending	
 	cmp eax, 0						

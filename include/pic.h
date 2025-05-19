@@ -4,14 +4,16 @@
 #include <stdint.h>
 #include "io.h"
 
-#define PIC1_OFFSET	    0x20		/* IO base address for master PIC */
-#define PIC2_OFFSET	    0x28		/* IO base address for slave PIC */
-#define PIC1_CMD_PORT	0x20
-#define PIC1_DATA_PORT	(PIC1_CMD_PORT + 1)
-#define PIC2_CMD_PORT	0xA0
-#define PIC2_DATA_PORT	(PIC2_CMD_PORT + 1)
-#define PIT_IRQ         0x0
-#define KEYBOARD_IRQ	0x01
+#define PIC1_OFFSET	        0x20		/* IO base address for master PIC */
+#define PIC2_OFFSET	        0x28		/* IO base address for slave PIC */
+#define PIC1_CMD_PORT	    0x20
+#define PIC1_DATA_PORT	    (PIC1_CMD_PORT + 1)
+#define PIC2_CMD_PORT	    0xA0
+#define PIC2_DATA_PORT	    (PIC2_CMD_PORT + 1)
+#define PIT_IRQ             0x0
+#define KEYBOARD_IRQ	    0x01
+#define PRIMARY_ATA_IRQ	    0x14
+#define SECONDARY_ATA_IRQ   0x15
 
 #define ICW1_ICW4	    0x01		/* Indicates that ICW4 will be present */
 #define ICW1_SINGLE	    0x02		/* Single (cascade) mode */

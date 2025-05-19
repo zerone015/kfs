@@ -2,17 +2,20 @@
 #include "io.h"
 #include "pci.h"
 #include "panic.h"
+#include "vmm.h"
+#include "pmm.h"
+#include "sched.h"
 
-static struct ata_channel channels[2];
-static struct ata_device devices[4];
+struct ata_channel channels[2];
+struct ata_device devices[4];
 
 static void ata_delay_400ns(uint8_t channel) 
 {
-   for(int i = 0; i < 14; i++)
+   for(int i = 0; i < 4; i++)
       (void)inb(channels[channel].ctrl);
 }
 
-static void ata_bsy_poll(uint8_t channel)
+static void ata_poll(uint8_t channel)
 {
    while (inb(channels[channel].base + ATA_REG_STATUS) & ATA_SR_BSY)
       ;
@@ -38,7 +41,7 @@ static int ata_identity_command(uint8_t channel, uint8_t drive, uint16_t *buf)
    if (inb(channels[channel].base + ATA_REG_STATUS) == 0)
       return -1;
 
-   ata_bsy_poll(channel);
+   ata_poll(channel);
 
    if (inb(channels[channel].base + ATA_REG_LBA1) != 0 || inb(channels[channel].base + ATA_REG_LBA2) != 0)
       return -1;
@@ -67,6 +70,9 @@ static void ata_channels_init(uint16_t bar4)
    channels[ATA_SECONDARY].base = ATA_SECONDARY_IO_BASE;
    channels[ATA_SECONDARY].ctrl = ATA_SECONDARY_CTRL_BASE;
    channels[ATA_SECONDARY].bmide = bar4 + 8;
+
+   outb(channels[ATA_PRIMARY].ctrl, 0);
+   outb(channels[ATA_SECONDARY].ctrl, 0);
 }
 
 static void ata_controller_init(struct pci_device *ata_ctrl)
@@ -75,7 +81,7 @@ static void ata_controller_init(struct pci_device *ata_ctrl)
 
    cmd_reg = pci_config_read(ata_ctrl->bus, ata_ctrl->device, ata_ctrl->function, PCI_CONFIG_REG_COMMAND);
    cmd_reg |= PCI_CONFIG_BUS_MASTER;
-   pci_config_write(ata_ctrl->bus, ata_ctrl->device, ata_ctrl->function, PCI_CONFIG_REG_COMMAND, cmd_reg);   
+   pci_config_write(ata_ctrl->bus, ata_ctrl->device, ata_ctrl->function, PCI_CONFIG_REG_COMMAND, cmd_reg);
 }
 
 static void ata_devices_init(void)
@@ -130,4 +136,68 @@ void ata_init(void)
    ata_channels_init((uint16_t)bar4_reg);
    
    ata_devices_init();
+}
+
+int ata_write(uint32_t lba, uint8_t sector_count, void *buf)
+{
+   page_t p_prdt;
+   struct prd_entry *v_prdt;
+
+   p_prdt = alloc_pages(PAGE_SIZE);
+   v_prdt= (struct prd_entry *)tmp_vmap(p_prdt);
+   v_prdt[0].base = (uint32_t)buf;
+   v_prdt[0].size = sector_count * 512;
+   v_prdt[0].flags = 0x8000;
+   tmp_vunmap(v_prdt);
+
+   outl(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_PRDT, p_prdt);
+   outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_CMD, 0);
+   outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_STATUS, 0x6);
+
+   outb(channels[ATA_PRIMARY].base + ATA_REG_DEVSEL, 0xE0 | (lba >> 24) & 0xF);
+   ata_delay_400ns(ATA_PRIMARY);
+
+   outb(channels[ATA_PRIMARY].base + ATA_REG_SECCOUNT0, sector_count);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA0, lba & 0xFF);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA1, (lba >> 8) & 0xFF);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA2, (lba >> 16) & 0xFF);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_WRITE_DMA);
+
+   outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_CMD, 1);
+   yield();
+   free_pages(p_prdt, PAGE_SIZE);
+
+   return 0;
+}
+
+int ata_read(uint32_t lba, uint8_t sector_count, void *buf)
+{
+   page_t p_prdt;
+   struct prd_entry *v_prdt;
+
+   p_prdt = alloc_pages(PAGE_SIZE);
+   v_prdt= (struct prd_entry *)tmp_vmap(p_prdt);
+   v_prdt[0].base = (uint32_t)buf;
+   v_prdt[0].size = sector_count * 512;
+   v_prdt[0].flags = 0x8000;
+   tmp_vunmap(v_prdt);
+
+   outl(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_PRDT, p_prdt);
+   outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_CMD, 0x8);
+   outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_STATUS, 0x6);
+
+   outb(channels[ATA_PRIMARY].base + ATA_REG_DEVSEL, 0xE0 | (lba >> 24) & 0xF);
+   ata_delay_400ns(ATA_PRIMARY);
+
+   outb(channels[ATA_PRIMARY].base + ATA_REG_SECCOUNT0, sector_count);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA0, lba & 0xFF);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA1, (lba >> 8) & 0xFF);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA2, (lba >> 16) & 0xFF);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_READ_DMA);
+
+   outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_CMD, 1);
+   yield();
+   free_pages(p_prdt, PAGE_SIZE);
+
+   return 0;
 }

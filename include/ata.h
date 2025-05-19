@@ -8,8 +8,6 @@
 #define ATA_SECONDARY_IO_BASE   0x170
 #define ATA_SECONDARY_CTRL_BASE 0x376
 #define ATA_BUS_MASTER_BASE     0x000
-#define ATA_PRIMARY_IRQ         14
-#define ATA_SECONDARY_IRQ       15
 
 /* status */
 #define ATA_SR_BSY     0x80    // Busy
@@ -72,13 +70,11 @@
 #define ATA_REG_DEVSEL     0x06
 #define ATA_REG_COMMAND    0x07
 #define ATA_REG_STATUS     0x07
-#define ATA_REG_SECCOUNT1  0x08
-#define ATA_REG_LBA3       0x09
-#define ATA_REG_LBA4       0x0A
-#define ATA_REG_LBA5       0x0B
-#define ATA_REG_CONTROL    0x0C
-#define ATA_REG_ALTSTATUS  0x0C
-#define ATA_REG_DEVADDRESS 0x0D
+
+/* bus master register */
+#define ATA_BMIDE_REG_CMD     0x00
+#define ATA_BMIDE_REG_STATUS  0x02
+#define ATA_BMIDE_REG_PRDT    0x04
 
 /* channels */
 #define      ATA_PRIMARY      0x00
@@ -105,5 +101,18 @@ struct ata_device {
    uint32_t size;           // Size in Sectors.
    char model[41];       // Model in string.
 };
+
+struct prd_entry {
+   uint32_t base;
+   uint16_t size;
+   uint16_t flags;
+} __attribute__((packed));
+
+extern struct ata_channel channels[2];
+extern struct ata_device devices[4];
+
+void ata_init(void);
+int ata_read(uint32_t lba, uint8_t sector_count, void *buf);
+int ata_write(uint32_t lba, uint8_t sector_count, void *buf);
 
 #endif
