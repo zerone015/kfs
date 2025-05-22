@@ -351,19 +351,6 @@ primary_ata_handler:
 	push ecx
 	push edx
 	call ata_handle
-.check_signal:
-	call unmasked_signal_pending	
-	cmp eax, 0						
-	je .done				
-.do_signal:
-	push ebx
-	push esi
-	push edi
-	push ebp
-	push esp						
-	push eax						
-	call do_signal				
-	add esp, 24
 .done:
 	pop edx
 	pop ecx

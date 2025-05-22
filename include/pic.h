@@ -12,8 +12,9 @@
 #define PIC2_DATA_PORT	    (PIC2_CMD_PORT + 1)
 #define PIT_IRQ             0x0
 #define KEYBOARD_IRQ	    0x01
-#define PRIMARY_ATA_IRQ	    0x14
-#define SECONDARY_ATA_IRQ   0x15
+#define CASCADE_IRQ         0x02
+#define PRIMARY_ATA_IRQ	    0x0E
+#define SECONDARY_ATA_IRQ   0x0F
 
 #define ICW1_ICW4	    0x01		/* Indicates that ICW4 will be present */
 #define ICW1_SINGLE	    0x02		/* Single (cascade) mode */

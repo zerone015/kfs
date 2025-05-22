@@ -20,5 +20,8 @@ void pic_init(void)
 {
 	pic_remap(PIC1_OFFSET, PIC2_OFFSET);
 	irq_clear_mask(KEYBOARD_IRQ);
-	irq_clear_mask(PIT_IRQ);
+	// irq_clear_mask(PIT_IRQ);
+	irq_clear_mask(CASCADE_IRQ);
+	irq_clear_mask(PRIMARY_ATA_IRQ);
+	// irq_clear_mask(SECONDARY_ATA_IRQ);
 }

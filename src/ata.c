@@ -28,8 +28,12 @@ static uint32_t ata_combine_dword(uint16_t low, uint16_t high)
 
 static int ata_identity_command(uint8_t channel, uint8_t drive, uint16_t *buf)
 {
+   int ret = -1;
+
    outb(channels[channel].base + ATA_REG_DEVSEL, 0xA0 | (drive << 4));
    ata_delay_400ns(channel);
+
+   outb(channels[channel].ctrl, 0x2);
 
    outb(channels[channel].base + ATA_REG_SECCOUNT0, 0);
    outb(channels[channel].base + ATA_REG_LBA0, 0);
@@ -39,17 +43,17 @@ static int ata_identity_command(uint8_t channel, uint8_t drive, uint16_t *buf)
    outb(channels[channel].base + ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
    
    if (inb(channels[channel].base + ATA_REG_STATUS) == 0)
-      return -1;
+      goto out;
 
    ata_poll(channel);
 
    if (inb(channels[channel].base + ATA_REG_LBA1) != 0 || inb(channels[channel].base + ATA_REG_LBA2) != 0)
-      return -1;
+      goto out;
 
    while (true) {
       uint8_t status = inb(channels[channel].base + ATA_REG_STATUS);
       if (status & ATA_SR_ERR)
-         return -1;
+         goto out;
       if (status & ATA_SR_DRQ)
          break;
    }
@@ -58,21 +62,21 @@ static int ata_identity_command(uint8_t channel, uint8_t drive, uint16_t *buf)
       uint16_t data = inw(channels[channel].base);
       buf[i] = data;
    }
-   
-   return 0;
+
+   ret = 0;
+out:
+   outb(channels[channel].ctrl, 0);
+   return ret;
 }
 
 static void ata_channels_init(uint16_t bar4)
 {
    channels[ATA_PRIMARY].base = ATA_PRIMARY_IO_BASE;
    channels[ATA_PRIMARY].ctrl = ATA_PRIMARY_CTRL_BASE;
-   channels[ATA_PRIMARY].bmide = bar4;
+   channels[ATA_PRIMARY].bmide = bar4 & ~0x1;
    channels[ATA_SECONDARY].base = ATA_SECONDARY_IO_BASE;
    channels[ATA_SECONDARY].ctrl = ATA_SECONDARY_CTRL_BASE;
-   channels[ATA_SECONDARY].bmide = bar4 + 8;
-
-   outb(channels[ATA_PRIMARY].ctrl, 0);
-   outb(channels[ATA_SECONDARY].ctrl, 0);
+   channels[ATA_SECONDARY].bmide = channels[ATA_PRIMARY].bmide + 8;
 }
 
 static void ata_controller_init(struct pci_device *ata_ctrl)
@@ -127,14 +131,12 @@ void ata_init(void)
 
    if (pci_info_fill(&ata_ctrl) < 0)
       do_panic("ATA controller not found on PCI bus");
-
+   
    ata_controller_init(&ata_ctrl);
-
    uint32_t bar4_reg = pci_config_read(ata_ctrl.bus, ata_ctrl.device, ata_ctrl.function, PCI_CONFIG_REG_BAR4);
    if (bar4_reg == 0)
       do_panic("Invalid BAR4 for ATA controller");
    ata_channels_init((uint16_t)bar4_reg);
-   
    ata_devices_init();
 }
 
@@ -161,9 +163,10 @@ int ata_write(uint32_t lba, uint8_t sector_count, void *buf)
    outb(channels[ATA_PRIMARY].base + ATA_REG_LBA0, lba & 0xFF);
    outb(channels[ATA_PRIMARY].base + ATA_REG_LBA1, (lba >> 8) & 0xFF);
    outb(channels[ATA_PRIMARY].base + ATA_REG_LBA2, (lba >> 16) & 0xFF);
-   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_WRITE_DMA);
 
+   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_WRITE_DMA);
    outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_CMD, 1);
+
    yield();
    free_pages(p_prdt, PAGE_SIZE);
 
@@ -193,9 +196,10 @@ int ata_read(uint32_t lba, uint8_t sector_count, void *buf)
    outb(channels[ATA_PRIMARY].base + ATA_REG_LBA0, lba & 0xFF);
    outb(channels[ATA_PRIMARY].base + ATA_REG_LBA1, (lba >> 8) & 0xFF);
    outb(channels[ATA_PRIMARY].base + ATA_REG_LBA2, (lba >> 16) & 0xFF);
-   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_READ_DMA);
 
+   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_READ_DMA);
    outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_CMD, 1);
+   
    yield();
    free_pages(p_prdt, PAGE_SIZE);
 
