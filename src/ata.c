@@ -15,10 +15,22 @@ static void ata_delay_400ns(uint8_t channel)
       (void)inb(channels[channel].ctrl);
 }
 
-static void ata_poll(uint8_t channel)
+static void ata_drq_poll(uint8_t channel)
 {
-   while (inb(channels[channel].base + ATA_REG_STATUS) & ATA_SR_BSY)
-      ;
+   uint8_t status;
+
+   ata_delay_400ns(channel);
+   do {
+      status = inb(channels[channel].base + ATA_REG_STATUS);
+   } while ((status & ATA_SR_BSY) || !(status & ATA_SR_DRQ));
+}
+
+static void ata_bsy_poll(uint8_t channel)
+{
+   uint8_t status;
+
+   ata_delay_400ns(channel);
+   while (inb(channels[channel].base + ATA_REG_STATUS) & ATA_SR_BSY);
 }
 
 static uint32_t ata_combine_dword(uint16_t low, uint16_t high)
@@ -28,10 +40,9 @@ static uint32_t ata_combine_dword(uint16_t low, uint16_t high)
 
 static int ata_identity_command(uint8_t channel, uint8_t drive, uint16_t *buf)
 {
-   int ret = -1;
+   uint16_t status;
 
    outb(channels[channel].base + ATA_REG_DEVSEL, 0xA0 | (drive << 4));
-   ata_delay_400ns(channel);
 
    outb(channels[channel].ctrl, 0x2);
 
@@ -41,21 +52,24 @@ static int ata_identity_command(uint8_t channel, uint8_t drive, uint16_t *buf)
    outb(channels[channel].base + ATA_REG_LBA2, 0);
 
    outb(channels[channel].base + ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
+   ata_delay_400ns(channel);
    
-   if (inb(channels[channel].base + ATA_REG_STATUS) == 0)
-      goto out;
+   status = inb(channels[channel].base + ATA_REG_STATUS);
+   if (status == 0)
+      return -1;
 
-   ata_poll(channel);
+   while (status & ATA_SR_BSY) 
+      status = inb(channels[channel].base + ATA_REG_STATUS);
 
    if (inb(channels[channel].base + ATA_REG_LBA1) != 0 || inb(channels[channel].base + ATA_REG_LBA2) != 0)
-      goto out;
+      return -1;
 
    while (true) {
-      uint8_t status = inb(channels[channel].base + ATA_REG_STATUS);
       if (status & ATA_SR_ERR)
-         goto out;
+         return -1;
       if (status & ATA_SR_DRQ)
          break;
+      status = inb(channels[channel].base + ATA_REG_STATUS);
    }
 
    for (int i = 0; i < 256; i++) {
@@ -63,20 +77,17 @@ static int ata_identity_command(uint8_t channel, uint8_t drive, uint16_t *buf)
       buf[i] = data;
    }
 
-   ret = 0;
-out:
-   outb(channels[channel].ctrl, 0);
-   return ret;
+   return 0;
 }
 
-static void ata_channels_init(uint16_t bar4)
+static void ata_channels_init(uint32_t bar4)
 {
    channels[ATA_PRIMARY].base = ATA_PRIMARY_IO_BASE;
    channels[ATA_PRIMARY].ctrl = ATA_PRIMARY_CTRL_BASE;
-   channels[ATA_PRIMARY].bmide = bar4 & ~0x1;
+   channels[ATA_PRIMARY].bmide = bar4 & 0xFFFFFFFC;
    channels[ATA_SECONDARY].base = ATA_SECONDARY_IO_BASE;
    channels[ATA_SECONDARY].ctrl = ATA_SECONDARY_CTRL_BASE;
-   channels[ATA_SECONDARY].bmide = channels[ATA_PRIMARY].bmide + 8;
+   channels[ATA_SECONDARY].bmide = (bar4 & 0xFFFFFFFC) + 8;
 }
 
 static void ata_controller_init(struct pci_device *ata_ctrl)
@@ -133,21 +144,21 @@ void ata_init(void)
       do_panic("ATA controller not found on PCI bus");
    
    ata_controller_init(&ata_ctrl);
-   uint32_t bar4_reg = pci_config_read(ata_ctrl.bus, ata_ctrl.device, ata_ctrl.function, PCI_CONFIG_REG_BAR4);
-   if (bar4_reg == 0)
+   uint32_t bar4 = pci_config_read(ata_ctrl.bus, ata_ctrl.device, ata_ctrl.function, PCI_CONFIG_REG_BAR4);
+   if (bar4 == 0)
       do_panic("Invalid BAR4 for ATA controller");
-   ata_channels_init((uint16_t)bar4_reg);
+   ata_channels_init(bar4);
    ata_devices_init();
 }
 
-int ata_write(uint32_t lba, uint8_t sector_count, void *buf)
+int ata_dma_write(uint32_t lba, uint8_t sector_count, page_t page)
 {
    page_t p_prdt;
    struct prd_entry *v_prdt;
 
    p_prdt = alloc_pages(PAGE_SIZE);
    v_prdt= (struct prd_entry *)tmp_vmap(p_prdt);
-   v_prdt[0].base = (uint32_t)buf;
+   v_prdt[0].base = page;
    v_prdt[0].size = sector_count * 512;
    v_prdt[0].flags = 0x8000;
    tmp_vunmap(v_prdt);
@@ -157,7 +168,6 @@ int ata_write(uint32_t lba, uint8_t sector_count, void *buf)
    outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_STATUS, 0x6);
 
    outb(channels[ATA_PRIMARY].base + ATA_REG_DEVSEL, 0xE0 | (lba >> 24) & 0xF);
-   ata_delay_400ns(ATA_PRIMARY);
 
    outb(channels[ATA_PRIMARY].base + ATA_REG_SECCOUNT0, sector_count);
    outb(channels[ATA_PRIMARY].base + ATA_REG_LBA0, lba & 0xFF);
@@ -173,14 +183,14 @@ int ata_write(uint32_t lba, uint8_t sector_count, void *buf)
    return 0;
 }
 
-int ata_read(uint32_t lba, uint8_t sector_count, void *buf)
+int ata_dma_read(uint32_t lba, uint8_t sector_count, page_t page)
 {
    page_t p_prdt;
    struct prd_entry *v_prdt;
 
    p_prdt = alloc_pages(PAGE_SIZE);
    v_prdt= (struct prd_entry *)tmp_vmap(p_prdt);
-   v_prdt[0].base = (uint32_t)buf;
+   v_prdt[0].base = page;
    v_prdt[0].size = sector_count * 512;
    v_prdt[0].flags = 0x8000;
    tmp_vunmap(v_prdt);
@@ -190,7 +200,6 @@ int ata_read(uint32_t lba, uint8_t sector_count, void *buf)
    outb(channels[ATA_PRIMARY].bmide + ATA_BMIDE_REG_STATUS, 0x6);
 
    outb(channels[ATA_PRIMARY].base + ATA_REG_DEVSEL, 0xE0 | (lba >> 24) & 0xF);
-   ata_delay_400ns(ATA_PRIMARY);
 
    outb(channels[ATA_PRIMARY].base + ATA_REG_SECCOUNT0, sector_count);
    outb(channels[ATA_PRIMARY].base + ATA_REG_LBA0, lba & 0xFF);
@@ -202,6 +211,52 @@ int ata_read(uint32_t lba, uint8_t sector_count, void *buf)
    
    yield();
    free_pages(p_prdt, PAGE_SIZE);
+
+   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_CACHE_FLUSH);
+   ata_bsy_poll(ATA_PRIMARY);
+
+   return 0;
+}
+
+int ata_pio_write(uint32_t lba, uint8_t sector_count, uint16_t *buf)
+{
+   outb(channels[ATA_PRIMARY].base + ATA_REG_DEVSEL, 0xE0 | (lba >> 24) & 0xF);
+   
+   outb(channels[ATA_PRIMARY].base + ATA_REG_SECCOUNT0, sector_count);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA0, lba & 0xFF);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA1, (lba >> 8) & 0xFF);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA2, (lba >> 16) & 0xFF);
+
+   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_WRITE_PIO);
+   ata_drq_poll(ATA_PRIMARY);
+   
+   for (int i = 0; i < sector_count * 256; i++) {
+      outw(channels[ATA_PRIMARY].base, buf[i]);
+      ata_drq_poll(ATA_PRIMARY);
+   }
+   
+   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_CACHE_FLUSH);
+   ata_bsy_poll(ATA_PRIMARY);
+
+   return 0;
+}
+
+int ata_pio_read(uint32_t lba, uint8_t sector_count, uint16_t *buf)
+{
+   outb(channels[ATA_PRIMARY].base + ATA_REG_DEVSEL, 0xE0 | (lba >> 24) & 0xF);
+   
+   outb(channels[ATA_PRIMARY].base + ATA_REG_SECCOUNT0, sector_count);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA0, lba & 0xFF);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA1, (lba >> 8) & 0xFF);
+   outb(channels[ATA_PRIMARY].base + ATA_REG_LBA2, (lba >> 16) & 0xFF);
+
+   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_READ_PIO);
+   ata_drq_poll(ATA_PRIMARY);
+   
+   for (int i = 0; i < sector_count * 256; i++) {
+      buf[i] = inw(channels[ATA_PRIMARY].base);
+      ata_drq_poll(ATA_PRIMARY);
+   }
 
    return 0;
 }

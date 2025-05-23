@@ -112,7 +112,9 @@ extern struct ata_channel channels[2];
 extern struct ata_device devices[4];
 
 void ata_init(void);
-int ata_read(uint32_t lba, uint8_t sector_count, void *buf);
-int ata_write(uint32_t lba, uint8_t sector_count, void *buf);
+int ata_dma_read(uint32_t lba, uint8_t sector_count, page_t page);
+int ata_dma_write(uint32_t lba, uint8_t sector_count, page_t page);
+int ata_pio_read(uint32_t lba, uint8_t sector_count, uint16_t *buf);
+int ata_pio_write(uint32_t lba, uint8_t sector_count, uint16_t *buf);
 
 #endif
