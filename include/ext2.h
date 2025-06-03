@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-#define EXT2_SUPER_BLOCK_LBA    2
 #define EXT2_MAGIC              0xEF53
 
 enum ext2_state {
@@ -107,7 +106,7 @@ struct ext2_inode {
 
     uint32_t i_generation;  // 파일 버전 (NFS 등에서 사용)
     uint32_t i_file_acl;    // ACL 확장 (블록 번호, 주로 0)
-    uint32_t i_dir_acl;     // 디렉터리일 경우, 파일 크기 상위 32비트 (ext2에서만)
+    uint32_t i_dir_acl;     // 파일 크기 상위 32비트 (ext2에서만)
     uint32_t i_faddr;       // 프래그먼트 주소 (ext2에서는 거의 사용 안 함)
 
     uint8_t  i_osd2[12];    // OS 종속 필드 (Linux: uid/gid 확장 등)

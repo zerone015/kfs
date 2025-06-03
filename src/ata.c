@@ -212,9 +212,6 @@ int ata_dma_read(uint32_t lba, uint8_t sector_count, page_t page)
    yield();
    free_pages(p_prdt, PAGE_SIZE);
 
-   outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_CACHE_FLUSH);
-   ata_bsy_poll(ATA_PRIMARY);
-
    return 0;
 }
 
@@ -230,11 +227,14 @@ int ata_pio_write(uint32_t lba, uint8_t sector_count, uint16_t *buf)
    outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_WRITE_PIO);
    ata_drq_poll(ATA_PRIMARY);
    
-   for (int i = 0; i < sector_count * 256; i++) {
-      outw(channels[ATA_PRIMARY].base, buf[i]);
+
+   for (int s = 0; s < sector_count; s++) {
       ata_drq_poll(ATA_PRIMARY);
+      for (int i = 0; i < 256; i++)
+         outw(channels[ATA_PRIMARY].base + ATA_REG_DATA, buf[i + 256*s]);
    }
    
+   while (inb(channels[ATA_PRIMARY].base + ATA_REG_STATUS) & ATA_SR_BSY);
    outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_CACHE_FLUSH);
    ata_bsy_poll(ATA_PRIMARY);
 
@@ -251,11 +251,11 @@ int ata_pio_read(uint32_t lba, uint8_t sector_count, uint16_t *buf)
    outb(channels[ATA_PRIMARY].base + ATA_REG_LBA2, (lba >> 16) & 0xFF);
 
    outb(channels[ATA_PRIMARY].base + ATA_REG_COMMAND, ATA_CMD_READ_PIO);
-   ata_drq_poll(ATA_PRIMARY);
    
-   for (int i = 0; i < sector_count * 256; i++) {
-      buf[i] = inw(channels[ATA_PRIMARY].base);
-      ata_drq_poll(ATA_PRIMARY);
+   for (int s = 0; s < sector_count; s++) {
+        ata_drq_poll(ATA_PRIMARY);
+        for (int i = 0; i < 256; i++)
+            buf[i + 256*s] = inw(channels[ATA_PRIMARY].base + ATA_REG_DATA);
    }
 
    return 0;
