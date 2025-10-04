@@ -1,7 +1,5 @@
 # KFS (kernel from scratch)
 
-<img src="assets/demo.gif" alt="QEMU 실행 데모" width="700"/>
-
 x86 기반의 Unix 스타일 커널을 구현한 프로젝트입니다.  
 커널의 모든 부분을 직접 설계하고 구현하여 추상적인 이해를 넘어서는 것을 목표로 합니다.
 
