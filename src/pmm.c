@@ -20,15 +20,15 @@ struct page *page_map;
  */
 static void mmap_trim_highmem(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entries;
+    multiboot_memory_map_t *entry;
 
-    entries = mmap->entries;
     for (size_t i = 0; i < mmap->count; i++) {
-        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (entries[i].addr >= MAX_RAM_SIZE)
-                entries[i].type = MULTIBOOT_MEMORY_RESERVED;
-            else if (entries[i].addr + entries[i].len > MAX_RAM_SIZE)
-                entries[i].len -= entries[i].addr + entries[i].len - MAX_RAM_SIZE;
+        entry = &mmap->entries[i];
+        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
+            if (entry->addr >= MAX_RAM_SIZE)
+                entry->type = MULTIBOOT_MEMORY_RESERVED;
+            else if (entry->addr + entry->len > MAX_RAM_SIZE)
+                entry->len -= entry->addr + entry->len - MAX_RAM_SIZE;
         }
 	}
 }
@@ -42,13 +42,13 @@ static void mmap_trim_highmem(struct memory_map *mmap)
  */
 static uint64_t calc_ram_size(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entries;
+    multiboot_memory_map_t *entry;
 
-    entries = mmap->entries;
     for (size_t i = 0; i < mmap->count; i++) {
-        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (ram_size < entries[i].addr + entries[i].len)
-                ram_size = entries[i].addr + entries[i].len;
+        entry = &mmap->entries[i];
+        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
+            if (ram_size < entry->addr + entry->len)
+                ram_size = entry->addr + entry->len;
         }
 	}
     return align_up(ram_size, PAGE_SIZE);
@@ -62,18 +62,18 @@ static uint64_t calc_ram_size(struct memory_map *mmap)
  */
 static void mmap_align(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entries;
+    multiboot_memory_map_t *entry;
     uint64_t aligned_addr;
 
-    entries = mmap->entries;
     for (size_t i = 0; i < mmap->count; i++) {
-        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            aligned_addr = align_up(entries[i].addr, PAGE_SIZE);
-            if (entries[i].len <= aligned_addr - entries[i].addr) {
-                entries[i].type = MULTIBOOT_MEMORY_RESERVED;
+        entry = &mmap->entries[i];
+        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
+            aligned_addr = align_up(entry->addr, PAGE_SIZE);
+            if (entry->len <= aligned_addr - entry->addr) {
+                entry->type = MULTIBOOT_MEMORY_RESERVED;
             } else {
-                entries[i].len -= aligned_addr - entries[i].addr;
-                entries[i].addr = aligned_addr;
+                entry->len -= aligned_addr - entry->addr;
+                entry->addr = aligned_addr;
             }
         }
 	}
@@ -95,15 +95,15 @@ static void bitmap_init(uintptr_t v_addr, size_t page_count)
 
 static void pages_register(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entries;
+    multiboot_memory_map_t *entry;
     uintptr_t addr;
     size_t page_count;
 
-    entries = mmap->entries;
     for (size_t i = 0; i < mmap->count; i++) {
-        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            addr = (uintptr_t)entries[i].addr;
-            page_count = entries[i].len / PAGE_SIZE;
+        entry = &mmap->entries[i];
+        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
+            addr = (uintptr_t)entry->addr;
+            page_count = entry->len / PAGE_SIZE;
             while (page_count--) {
                 free_pages(addr, PAGE_SIZE);
                 addr += PAGE_SIZE;
@@ -120,17 +120,17 @@ static void pages_register(struct memory_map *mmap)
  */
 static void mmap_reserve_kernel(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entries;
+    multiboot_memory_map_t *entry;
 
-    entries = mmap->entries;
     for (size_t i = 0; i < mmap->count; i++) {
-        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (entries[i].addr == K_PLOAD_START) {
-                if (entries[i].len == KERNEL_SIZE) {
-                    entries[i].type = MULTIBOOT_MEMORY_RESERVED;
+        entry = &mmap->entries[i];
+        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
+            if (entry->addr == K_PLOAD_START) {
+                if (entry->len == KERNEL_SIZE) {
+                    entry->type = MULTIBOOT_MEMORY_RESERVED;
                 } else {
-                    entries[i].len -= KERNEL_SIZE;
-                    entries[i].addr += KERNEL_SIZE;
+                    entry->len -= KERNEL_SIZE;
+                    entry->addr += KERNEL_SIZE;
                 }
             }
         }
