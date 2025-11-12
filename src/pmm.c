@@ -10,27 +10,47 @@ static struct buddy_allocator bd_alloc;
 uint16_t *page_ref;
 uint64_t ram_size;
 
-static void mmap_sanitize(multiboot_memory_map_t* mmap, size_t mmap_count)
+/*
+ * Trims memory regions that exceed the 4 GB physical address limit.
+ * Since PAE (Physical Address Extension) is not supported at the moment,
+ * the kernel cannot access physical addresses above 4 GB.
+ * Any region starting beyond this limit is marked as reserved,
+ * and regions that partially cross the boundary are truncated to fit within it.
+ */
+static void mmap_trim_highmem(struct memory_map *mmap)
 {
-    for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (mmap[i].addr >= MAX_RAM_SIZE)
-                mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
-            else if (mmap[i].addr + mmap[i].len > MAX_RAM_SIZE)
-                mmap[i].len -= mmap[i].addr + mmap[i].len - MAX_RAM_SIZE;
+    multiboot_memory_map_t *entries;
+
+    entries = mmap->entries;
+    for (size_t i = 0; i < mmap->count; i++) {
+        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
+            if (entries[i].addr >= MAX_RAM_SIZE)
+                entries[i].type = MULTIBOOT_MEMORY_RESERVED;
+            else if (entries[i].addr + entries[i].len > MAX_RAM_SIZE)
+                entries[i].len -= entries[i].addr + entries[i].len - MAX_RAM_SIZE;
         }
 	}
 }
 
-static void calc_ram_size(multiboot_memory_map_t* mmap, size_t mmap_count)
+/*
+ * Calculates the total physical memory size from the Multiboot memory map.
+ * The result indicates the highest physical address available in the system,
+ * aligned to a page boundary.
+ * This value is used as a reference when determining the size of
+ * physical memory management metadata structures (e.g., struct page array).
+ */
+static uint64_t calc_ram_size(struct memory_map *mmap)
 {
-    for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (ram_size < mmap[i].addr + mmap[i].len)
-                ram_size = mmap[i].addr + mmap[i].len;
+    multiboot_memory_map_t *entries;
+
+    entries = mmap->entries;
+    for (size_t i = 0; i < mmap->count; i++) {
+        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
+            if (ram_size < entries[i].addr + entries[i].len)
+                ram_size = entries[i].addr + entries[i].len;
         }
 	}
-    ram_size = align_up(ram_size, PAGE_SIZE);
+    return align_up(ram_size, PAGE_SIZE);
 }
 
 static size_t find_bitmap_size(void)
@@ -49,18 +69,26 @@ static size_t find_bitmap_size(void)
     return align_up(sum, PAGE_SIZE);
 }
 
-static void memory_align(multiboot_memory_map_t* mmap, size_t mmap_count)
+/*
+ * Aligns all usable memory regions in the memory map to page boundaries.
+ * BIOS-provided memory map entries are not guaranteed to be page-aligned,
+ * so this adjustment ensures that the physical memory allocator can manage
+ * pages cleanly without overlapping partial regions.
+ */
+static void mmap_align(struct memory_map *mmap)
 {
-    uint64_t align_addr;
+    multiboot_memory_map_t *entries;
+    uint64_t aligned_addr;
 
-    for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            align_addr = align_up(mmap[i].addr, PAGE_SIZE);
-            if (mmap[i].len <= align_addr - mmap[i].addr) {
-                mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
+    entries = mmap->entries;
+    for (size_t i = 0; i < mmap->count; i++) {
+        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
+            aligned_addr = align_up(entries[i].addr, PAGE_SIZE);
+            if (entries[i].len <= aligned_addr - entries[i].addr) {
+                entries[i].type = MULTIBOOT_MEMORY_RESERVED;
             } else {
-                mmap[i].len -= align_addr - mmap[i].addr;
-                mmap[i].addr = align_addr;
+                entries[i].len -= aligned_addr - entries[i].addr;
+                entries[i].addr = aligned_addr;
             }
         }
 	}
@@ -80,15 +108,17 @@ static void bd_allocator_init(uintptr_t v_addr)
     }
 }
 
-static void pages_register(multiboot_memory_map_t* mmap, size_t mmap_count)
+static void pages_register(struct memory_map *mmap)
 {
+    multiboot_memory_map_t *entries;
     uintptr_t addr;
     size_t page_count;
 
-    for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            addr = (uintptr_t)mmap[i].addr;
-            page_count = mmap[i].len / PAGE_SIZE;
+    entries = mmap->entries;
+    for (size_t i = 0; i < mmap->count; i++) {
+        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
+            addr = (uintptr_t)entries[i].addr;
+            page_count = entries[i].len / PAGE_SIZE;
             while (page_count--) {
                 free_pages(addr, PAGE_SIZE);
                 addr += PAGE_SIZE;
@@ -97,64 +127,73 @@ static void pages_register(multiboot_memory_map_t* mmap, size_t mmap_count)
 	}
 }
 
-static void kernel_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_count)
+/*
+ * In the memory map provided by GRUB, the physical region where the kernel is loaded
+ * is still marked as available memory. This must be corrected before initializing
+ * the physical memory allocator to prevent the kernel image from being overwritten.
+ * This function marks the kernel's physical load area as reserved in the memory map.
+ */
+static void mmap_reserve_kernel(struct memory_map *mmap)
 {
-    size_t kernel_size;
+    multiboot_memory_map_t *entries;
 
-    kernel_size = KERNEL_SIZE;
-    for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (mmap[i].addr == 0x00100000) {
-                if (mmap[i].len == kernel_size) {
-                    mmap[i].type = MULTIBOOT_MEMORY_RESERVED;
+    entries = mmap->entries;
+    for (size_t i = 0; i < mmap->count; i++) {
+        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
+            if (entries[i].addr == K_PLOAD_START) {
+                if (entries[i].len == KERNEL_SIZE) {
+                    entries[i].type = MULTIBOOT_MEMORY_RESERVED;
                 } else {
-                    mmap[i].len -= kernel_size;
-                    mmap[i].addr += kernel_size;
+                    entries[i].len -= KERNEL_SIZE;
+                    entries[i].addr += KERNEL_SIZE;
                 }
             }
         }
 	}
 }
 
-static multiboot_memory_map_t *find_bitmap_memory(multiboot_memory_map_t* mmap, size_t mmap_count, size_t bitmap_size)
+static multiboot_memory_map_t *find_bitmap_memory(struct memory_map *mmap, size_t bitmap_size)
 {
-    for (size_t i = 0; i < mmap_count; i++) {
-        if (mmap[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (mmap[i].addr < 0x00100000 && bitmap_size <= mmap[i].len) 
-                return &mmap[i];
+    multiboot_memory_map_t *entries;
+
+    entries = mmap->entries;
+    for (size_t i = 0; i < mmap->count; i++) {
+        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
+            if (entries[i].addr < 0x00100000 && bitmap_size <= entries[i].len) 
+                return &entries[i];
         }
 	}
     return NULL;
 }
 
-static uintptr_t bd_allocator_memory_reserve(multiboot_memory_map_t* mmap, size_t mmap_count)
+static uintptr_t bd_allocator_memory_reserve(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *useful_mmap;
+    multiboot_memory_map_t *entry;
     size_t bitmap_size;
     uintptr_t v_addr;
 
     bitmap_size = find_bitmap_size();
-    useful_mmap = find_bitmap_memory(mmap, mmap_count, bitmap_size);
-    if (!useful_mmap)
+    entry = find_bitmap_memory(mmap, bitmap_size);
+    if (!entry)
         do_panic("Not enough memory for pmm bitmap allocation");
-    v_addr = K_VSPACE_START | useful_mmap->addr;
+    v_addr = K_VSPACE_START | entry->addr;
     memset((void *)v_addr, 0, bitmap_size);
-    if (useful_mmap->len == bitmap_size) {
-        useful_mmap->type = MULTIBOOT_MEMORY_RESERVED;
+    if (entry->len == bitmap_size) {
+        entry->type = MULTIBOOT_MEMORY_RESERVED;
     } else {
-        useful_mmap->len -= bitmap_size;
-        useful_mmap->addr += bitmap_size;
+        entry->len -= bitmap_size;
+        entry->addr += bitmap_size;
     }
     return v_addr;
 }
 
-static void page_allocator_init(multiboot_memory_map_t* mmap, size_t mmap_count)
+static void page_allocator_init(struct memory_map *mmap)
 {
     uintptr_t v_addr;
 
-    v_addr = bd_allocator_memory_reserve(mmap, mmap_count);
+    v_addr = bd_allocator_memory_reserve(mmap);
     bd_allocator_init(v_addr);
-    pages_register(mmap, mmap_count);
+    pages_register(mmap);
 }
 
 static uintptr_t mmap_pages_map(uintptr_t mmap_addr, size_t mmap_size)
@@ -293,22 +332,35 @@ void free_pages(page_t page, size_t size)
 	bd_alloc.orders[order].free_count++;
 }
 
+/*
+ * The memory map provided by GRUB is stored in a region that BIOS marks as usable.
+ * In other words, this region lies within memory that the kernel may later overwrite.
+ * However, since the memory map is only used briefly within this initialization function,
+ * it is much simpler to copy it into a stack array than to mark that region as reserved.
+ * Therefore, temporarily map the mmap pages with mmap_pages_map(), copy them,
+ * and then unmap the original mapping.
+ */
+static void mmap_copy_from_grub(struct memory_map *mmap,
+                                  multiboot_info_t *mbd)
+{
+    mbd->mmap_addr = mmap_pages_map(mbd->mmap_addr, mbd->mmap_length);
+    mmap->count = find_mmap_count(mbd->mmap_length);
+    if (mmap->count > MAX_MMAP)
+        do_panic("The GRUB memory map is too large");
+    mmap_memcpy(mmap->entries, (multiboot_memory_map_t *)mbd->mmap_addr, mmap->count);
+    mbd_mmap_pages_unmap(mbd);
+}
+
 void pmm_init(multiboot_info_t* mbd)
 {
-    multiboot_memory_map_t mmap[MAX_MMAP];
-    size_t mmap_count;
+    struct memory_map mmap;
 
-    mbd->mmap_addr = mmap_pages_map(mbd->mmap_addr, mbd->mmap_length);
-    mmap_count = find_mmap_count(mbd->mmap_length);
-    if (mmap_count > MAX_MMAP)
-        do_panic("The GRUB memory map is too large");
-    mmap_memcpy(mmap, (multiboot_memory_map_t *)mbd->mmap_addr, mmap_count);
-    mbd_mmap_pages_unmap(mbd);
-    mmap_sanitize(mmap, mmap_count);
-    calc_ram_size(mmap, mmap_count);
-    kernel_memory_reserve(mmap, mmap_count);
-    memory_align(mmap, mmap_count);
-    page_allocator_init(mmap, mmap_count);
+    mmap_copy_from_grub(&mmap, mbd);
+    mmap_trim_highmem(&mmap);
+    ram_size = calc_ram_size(&mmap);
+    mmap_reserve_kernel(&mmap);
+    mmap_align(&mmap);
+    page_allocator_init(&mmap);
 }
 
 void page_ref_init(void)

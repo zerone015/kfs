@@ -15,6 +15,11 @@ typedef uintptr_t page_t;
 #define KERNEL_SIZE			(K_PLOAD_END - K_PLOAD_START)
 #define PAGE_NONE			((page_t)-1)
 
+struct memory_map {
+    multiboot_memory_map_t entries[MAX_MMAP];
+    size_t count;
+};
+
 struct buddy_order {
 	uint32_t *bitmap;
 	size_t free_count;
