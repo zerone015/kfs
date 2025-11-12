@@ -14,7 +14,6 @@ extern uint64_t ram_size;
 extern uint16_t *page_ref;
 
 #define block_size(order)		(PAGE_SIZE << (order))
-#define bitmap_first_size(ram)  (((((ram) + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8)
 
 void pmm_init(multiboot_info_t* mbd);
 void page_ref_init(void);

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "paging.h"
+#include "list.h"
 
 typedef uintptr_t page_t;
 
@@ -15,8 +16,14 @@ typedef uintptr_t page_t;
 #define KERNEL_SIZE			(K_PLOAD_END - K_PLOAD_START)
 #define PAGE_NONE			((page_t)-1)
 
+struct page {
+	struct list_head free_list;
+	uint32_t order;
+	uint32_t ref_count;
+};
+
 struct memory_map {
-    multiboot_memory_map_t entries[MAX_MMAP];
+    multiboot_memory_map_t entries[MAX_MMAP + 2];
     size_t count;
 };
 

@@ -9,6 +9,7 @@
 static struct buddy_allocator bd_alloc;
 uint16_t *page_ref;
 uint64_t ram_size;
+struct page *page_map;
 
 /*
  * Trims memory regions that exceed the 4 GB physical address limit.
@@ -53,22 +54,6 @@ static uint64_t calc_ram_size(struct memory_map *mmap)
     return align_up(ram_size, PAGE_SIZE);
 }
 
-static size_t find_bitmap_size(void)
-{
-    size_t first_size;
-    size_t sum;
-
-    sum = 0;
-    first_size = bitmap_first_size(ram_size);
-    for (size_t order = 0; order < MAX_ORDER; order++) {
-        sum += align_up(first_size, 4);
-        first_size /= 2;
-        if (first_size < 32)
-            first_size = 32;
-    }
-    return align_up(sum, PAGE_SIZE);
-}
-
 /*
  * Aligns all usable memory regions in the memory map to page boundaries.
  * BIOS-provided memory map entries are not guaranteed to be page-aligned,
@@ -94,11 +79,11 @@ static void mmap_align(struct memory_map *mmap)
 	}
 }
 
-static void bd_allocator_init(uintptr_t v_addr)
+static void bitmap_init(uintptr_t v_addr, size_t page_count)
 {
     size_t first_size;
 
-    first_size = bitmap_first_size(ram_size);
+    first_size = ceil_div(page_count, 16);
     for (size_t order = 0; order < MAX_ORDER; order++) {
         bd_alloc.orders[order].bitmap = (uint32_t *)v_addr;
         v_addr += align_up(first_size, 4);
@@ -152,48 +137,119 @@ static void mmap_reserve_kernel(struct memory_map *mmap)
 	}
 }
 
-static multiboot_memory_map_t *find_bitmap_memory(struct memory_map *mmap, size_t bitmap_size)
+static size_t calc_bitmap_size(size_t page_count)
 {
-    multiboot_memory_map_t *entries;
+    size_t first_size;
+    size_t sum;
 
-    entries = mmap->entries;
-    for (size_t i = 0; i < mmap->count; i++) {
-        if (entries[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (entries[i].addr < 0x00100000 && bitmap_size <= entries[i].len) 
-                return &entries[i];
-        }
-	}
-    return NULL;
-}
-
-static uintptr_t bd_allocator_memory_reserve(struct memory_map *mmap)
-{
-    multiboot_memory_map_t *entry;
-    size_t bitmap_size;
-    uintptr_t v_addr;
-
-    bitmap_size = find_bitmap_size();
-    entry = find_bitmap_memory(mmap, bitmap_size);
-    if (!entry)
-        do_panic("Not enough memory for pmm bitmap allocation");
-    v_addr = K_VSPACE_START | entry->addr;
-    memset((void *)v_addr, 0, bitmap_size);
-    if (entry->len == bitmap_size) {
-        entry->type = MULTIBOOT_MEMORY_RESERVED;
-    } else {
-        entry->len -= bitmap_size;
-        entry->addr += bitmap_size;
+    sum = 0;
+    first_size = ceil_div(page_count, 16);
+    for (size_t order = 0; order < MAX_ORDER; order++) {
+        sum += align_up(first_size, 4);
+        first_size /= 2;
+        if (first_size < 32)
+            first_size = 32;
     }
-    return v_addr;
+    return sum;
 }
 
-static void page_allocator_init(struct memory_map *mmap)
+static size_t calc_pagemap_size(size_t page_count)
+{
+    return sizeof(struct page) * page_count;
+}
+
+static multiboot_memory_map_t *mmap_alloc_metadata(struct memory_map *mmap, size_t metadata_size)
+{
+    multiboot_memory_map_t *best;
+    multiboot_memory_map_t *entry;
+    uint64_t max_len;
+    uint64_t start;
+    uint64_t len;
+    uint64_t orig_addr;
+    uint64_t orig_len;
+    uint64_t meta_addr;
+    uint64_t meta_end;
+    size_t count;
+    size_t i;
+
+    best = NULL;
+    entry = NULL;
+    max_len = 0;
+    metadata_size = align_up(metadata_size, K_PAGE_SIZE);
+
+    /* find the largest usable region */
+    for (i = 0; i < mmap->count; i++) {
+        entry = &mmap->entries[i];
+        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
+            continue;
+
+        start = align_up(entry->addr, K_PAGE_SIZE);
+        if (start >= entry->addr + entry->len)
+            continue;
+
+        len = entry->addr + entry->len - start;
+        if (len >= metadata_size && len > max_len) {
+            max_len = len;
+            best = entry;
+        }
+    }
+
+    if (best == NULL)
+        return NULL;
+
+    orig_addr = best->addr;
+    orig_len  = best->len;
+    meta_addr = align_up(orig_addr, K_PAGE_SIZE);
+    meta_end  = meta_addr + metadata_size;
+    count = mmap->count;
+
+    /* before region */
+    if (meta_addr > orig_addr) {
+        mmap->entries[count] = *best;
+        mmap->entries[count].len = meta_addr - orig_addr;
+        mmap->entries[count].type = MULTIBOOT_MEMORY_AVAILABLE;
+        count++;
+    }
+
+    /* metadata region itself */
+    best->addr = meta_addr;
+    best->len  = metadata_size;
+    best->type = MULTIBOOT_MEMORY_RESERVED;
+
+    /* after region */
+    if (meta_end < orig_addr + orig_len) {
+        mmap->entries[count] = *best;
+        mmap->entries[count].addr = meta_end;
+        mmap->entries[count].len = (orig_addr + orig_len) - meta_end;
+        mmap->entries[count].type = MULTIBOOT_MEMORY_AVAILABLE;
+        count++;
+    }
+
+    mmap->count = count;
+    return best;
+}
+
+static size_t page_allocator_init(struct memory_map *mmap)
 {
     uintptr_t v_addr;
+    size_t page_count;
+    size_t metadata_size;
+    multiboot_memory_map_t *entry;
+    size_t pagemap_size;
 
-    v_addr = bd_allocator_memory_reserve(mmap);
-    bd_allocator_init(v_addr);
+    page_count = ram_size / PAGE_SIZE;
+    metadata_size = calc_bitmap_size(page_count);
+    pagemap_size = calc_pagemap_size(page_count);
+    metadata_size += pagemap_size;
+    entry = mmap_alloc_metadata(mmap, metadata_size);
+    if (!entry)
+        do_panic("Not enough memory for pmm allocation");
+    v_addr = pages_initmap(entry->addr, entry->size, PG_PS | PG_RDWR | PG_PRESENT);
+    memset((void *)v_addr, 0, entry->size);
+    page_map = (struct page *)v_addr;
+    bitmap_init(v_addr + pagemap_size, page_count);
     pages_register(mmap);
+    return entry->size - metadata_size;
 }
 
 static uintptr_t mmap_pages_map(uintptr_t mmap_addr, size_t mmap_size)
@@ -346,7 +402,7 @@ static void mmap_copy_from_grub(struct memory_map *mmap,
     mbd->mmap_addr = mmap_pages_map(mbd->mmap_addr, mbd->mmap_length);
     mmap->count = find_mmap_count(mbd->mmap_length);
     if (mmap->count > MAX_MMAP)
-        do_panic("The GRUB memory map is too large");
+        do_panic("Abnormal number of GRUB memory map entries");
     mmap_memcpy(mmap->entries, (multiboot_memory_map_t *)mbd->mmap_addr, mmap->count);
     mbd_mmap_pages_unmap(mbd);
 }

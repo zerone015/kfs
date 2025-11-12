@@ -7,6 +7,7 @@
 #include "paging.h"
 
 #define check_flag(flags, bit)          ((flags) & (1 << (bit)))
+#define ceil_div(dividend, divisor) 	(((dividend) + ((divisor) - 1)) / (divisor))
 #define align_up(val, size)       		(((val) + ((size) - 1)) & ~((size) - 1))
 #define align_down(val, size)       	((val) & ~((size) - 1))
 #define is_aligned(val, size)			(!((val) & ((size) - 1)))
