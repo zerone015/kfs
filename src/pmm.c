@@ -93,6 +93,13 @@ static void bitmap_init(uintptr_t v_addr, size_t page_count)
     }
 }
 
+static void freelist_init(void)
+{
+    for (size_t order = 0; order < MAX_ORDER; order++) {
+        init_list_head(&bd_alloc.orders[order].free_list);
+    }
+}
+
 static void pages_register(struct memory_map *mmap)
 {
     multiboot_memory_map_t *entry;
@@ -249,6 +256,7 @@ static size_t page_allocator_init(struct memory_map *mmap)
     memset((void *)v_addr, 0, entry->size);
     page_map = (struct page *)v_addr;
     bitmap_init(v_addr + pagemap_size, page_count);
+    freelist_init();
     pages_register(mmap);
     return entry->size - metadata_size;
 }
@@ -356,47 +364,55 @@ static struct page *base_page(size_t addr, size_t order)
 size_t alloc_pages(size_t size)
 {
     struct page *page;
-	uint32_t *bitmap;
-	size_t order, offset, pfn, addr;
+    uint32_t *bitmap;
     struct list_head *free_list;
+    size_t initial_order;
+    size_t current_order;
+    size_t offset;
+    size_t pfn;
+    size_t addr;
+    size_t bd_addr;
+    size_t split_block_size;
 
-	order = 0;
-	while (size > block_size(order))
-		order++;
+    initial_order = 0;
+    while (size > block_size(initial_order))
+        initial_order++;
 
-	for (size_t i = order; i < MAX_ORDER; i++) {
-        free_list = &bd_alloc.orders[i].free_list;
+    for (current_order = initial_order; current_order < MAX_ORDER; current_order++) {
+        free_list = &bd_alloc.orders[current_order].free_list;
         if (!list_empty(free_list)) {
             page = list_first_entry(free_list, struct page, free_list);
             list_del(&page->free_list);
 
-            bitmap = bd_alloc.orders[i].bitmap;
             pfn = pfn_from_page(page);
             addr = phys_addr_from_pfn(pfn);
-            offset = addr / block_size(i) / 2;
+            offset = addr / block_size(current_order) / 2;
+            
+            bitmap = bd_alloc.orders[current_order].bitmap;
             marker_clear(bitmap, offset);
 
-            while (order < i) {
-                i--;
-				
-                bitmap = bd_alloc.orders[i].bitmap;
-                offset *= 2;
-                marker_set(bitmap, offset);
+            while (initial_order < current_order) {
+                current_order--; 
+                
+                split_block_size = block_size(current_order); 
+                
+                bd_addr = addr + split_block_size; 
 
-                free_list = &bd_alloc.orders[i].free_list;
-                page = base_page(addr, i);
-                page->order = i;
+                bitmap = bd_alloc.orders[current_order].bitmap;
+                offset = bd_addr / split_block_size / 2; 
+                marker_set(bitmap, offset); 
+
+                free_list = &bd_alloc.orders[current_order].free_list;
+                pfn = pfn_from_phys_addr(bd_addr);
+                page = get_page(pfn);
                 page->ref_count = 0;
                 list_add(&page->free_list, free_list);
-
-                addr = addr + block_size(i);
             }
-            return addr;
-		}
-	}
-	return PAGE_NONE;
+            return addr; 
+        }
+    }
+    return PAGE_NONE;
 }
-
 
 /*
  * Frees a page block and performs buddy merging when possible.
@@ -435,7 +451,6 @@ void free_pages(size_t addr, size_t size)
     marker_set(bitmap, offset);
 
     page = base_page(addr, order);
-    page->order = order;
     page->ref_count = 0;
 
     list_add(&page->free_list, &bd_alloc.orders[order].free_list);

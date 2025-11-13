@@ -15,7 +15,6 @@
 #define PAGE_NONE			((size_t)-1)
 
 struct page {
-	uint32_t order;
 	uint32_t ref_count;
 	struct list_head free_list;
 };
