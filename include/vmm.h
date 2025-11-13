@@ -85,14 +85,14 @@ static inline __attribute__((always_inline)) void mapping_files_cleanup(struct m
     struct mapping_file *cur, *tmp;
     struct rb_root *root;
     uint32_t *pte;
-    page_t page;
+    uintptr_t page;
 
     root = &mapping_files->by_base;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
         if (do_mapping_free) {
             pte = pte_from_addr(cur->base);
             for (size_t i = 0; i < (cur->size / PAGE_SIZE); i++) {
-                page = page_from_pte(pte[i]);
+                page = phys_addr_from_pte(pte[i]);
                 if (is_cow(pte[i])) {
                     if (!page_is_shared(page)) {
                         free_pages(page, PAGE_SIZE);
@@ -123,7 +123,7 @@ static inline __attribute__((always_inline)) void pgdir_cleanup(bool do_recycle)
     pgdir = current_pgdir();
     for (size_t i = 0; i < 768; i++) {
         if (pgdir[i]) {
-            free_pages(page_4kb_from_pde(pgdir[i]), PAGE_SIZE);
+            free_pages(phys_addr_4kb_from_pde(pgdir[i]), PAGE_SIZE);
             if (do_recycle) {
                 pgdir[i] = 0;
                 pgtab = pgtab_from_pdi(i);
@@ -141,7 +141,7 @@ static inline __attribute__((always_inline)) void user_vspace_cleanup
     pgdir_cleanup(flags & CL_RECYCLE);
 }
 
-static inline void *tmp_vmap(page_t page)
+static inline void *tmp_vmap(uintptr_t page)
 {
     uint32_t *pte;
 
@@ -163,10 +163,10 @@ static inline void tmp_vunmap(void *mem)
 
 static inline void cow_handle(uint32_t *pte, uintptr_t addr) 
 {
-    page_t page, new_page;
+    uintptr_t page, new_page;
     void *new;
 
-    page = page_from_pte(*pte);
+    page = phys_addr_from_pte(*pte);
     if (page_is_shared(page)) {
         new_page = alloc_pages(PAGE_SIZE);
         new = tmp_vmap(new_page);

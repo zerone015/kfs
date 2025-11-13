@@ -74,7 +74,7 @@ static size_t vb_size_with_free(uintptr_t addr)
     do {
         if (page_is_present(*pde)) {
             tlb_invl(addr);
-            free_pages(page_4mb_from_pde(*pde), K_PAGE_SIZE);
+            free_pages(phys_addr_4mb_from_pde(*pde), K_PAGE_SIZE);
         }
         size += K_PAGE_SIZE;
         addr += K_PAGE_SIZE;

@@ -17,32 +17,32 @@ extern uint16_t *page_ref;
 
 void pmm_init(multiboot_info_t* mbd);
 void page_ref_init(void);
-page_t alloc_pages(size_t size);
-void free_pages(page_t addr, size_t size);
+uintptr_t alloc_pages(size_t size);
+void free_pages(size_t addr, size_t size);
 
-static inline void page_ref_inc(page_t page)
+static inline void page_ref_inc(uintptr_t page)
 {
-	page_ref[pfn_from_page(page)]++;
+	page_ref[pfn_from_phys_addr(page)]++;
 }
 
-static inline void page_ref_dec(page_t page)
+static inline void page_ref_dec(uintptr_t page)
 {
-	page_ref[pfn_from_page(page)]--;
+	page_ref[pfn_from_phys_addr(page)]--;
 }
 
-static inline void page_set_shared(page_t page)
+static inline void page_set_shared(uintptr_t page)
 {
-	page_ref[pfn_from_page(page)] = 2;
+	page_ref[pfn_from_phys_addr(page)] = 2;
 }
 
-static inline void page_ref_clear(page_t page)
+static inline void page_ref_clear(uintptr_t page)
 {
-	page_ref[pfn_from_page(page)] = 0;
+	page_ref[pfn_from_phys_addr(page)] = 0;
 }
 
-static inline bool page_is_shared(page_t page)
+static inline bool page_is_shared(uintptr_t page)
 {
-	return page_ref[pfn_from_page(page)] >= 2 ? true : false;
+	return page_ref[pfn_from_phys_addr(page)] >= 2 ? true : false;
 }
 
 #endif

@@ -205,13 +205,13 @@ static void pages_set_cow(void)
     struct mapping_file *cur, *tmp;
     struct rb_root *root;
     uint32_t *pte;
-    page_t page;
+    uintptr_t page;
     
     root = &current->mapping_files.by_base;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
         pte = pte_from_addr(cur->base);
         for (size_t i = 0; i < (cur->size / PAGE_SIZE); i++) {
-            page = page_from_pte(pte[i]);
+            page = phys_addr_from_pte(pte[i]);
             if (is_cow(pte[i])) {
                 page_ref_inc(page);
             } 
@@ -229,11 +229,11 @@ static void pages_set_cow(void)
     }
 }
 
-static page_t pgdir_clone(void)
+static uintptr_t pgdir_clone(void)
 {
     uint32_t *pgdir;
     void *pgtab;
-    page_t pgdir_page, pgtab_page;
+    uintptr_t pgdir_page, pgtab_page;
 
     pgdir_page = alloc_pages(PAGE_SIZE);
     pgdir = (uint32_t *)tmp_vmap(pgdir_page);
