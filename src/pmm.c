@@ -20,23 +20,23 @@ struct page *page_map;
  */
 static void mmap_trim_highmem(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entry;
+    multiboot_memory_map_t *region;
     uint64_t end;
 
     for (size_t i = 0; i < mmap->count; i++) {
-        entry = &mmap->entries[i];
+        region = &mmap->regions[i];
 
-        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
+        if (region->type != MULTIBOOT_MEMORY_AVAILABLE)
             continue;
 
-        if (entry->addr >= MAX_RAM_SIZE) {
-            entry->type = MULTIBOOT_MEMORY_RESERVED;
+        if (region->addr >= MAX_RAM_SIZE) {
+            region->type = MULTIBOOT_MEMORY_RESERVED;
             continue;
         }
 
-        end = entry->addr + entry->len;
+        end = region->addr + region->len;
         if (end > MAX_RAM_SIZE)
-            entry->len -= end - MAX_RAM_SIZE;
+            region->len -= end - MAX_RAM_SIZE;
     }
 }
 
@@ -47,54 +47,53 @@ static void mmap_trim_highmem(struct memory_map *mmap)
  * The resulting RAM size is used to determine the size of physical memory
  * metadata structures (e.g., the struct page array).
  */
-static uint64_t ram_size_init(struct memory_map *mmap)
+static void ram_size_init(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entry;
+    multiboot_memory_map_t *region;
     uint64_t max_end;
     uint64_t end;
 
     max_end = 0;
 
     for (size_t i = 0; i < mmap->count; i++) {
-        entry = &mmap->entries[i];
+        region = &mmap->regions[i];
 
-        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
+        if (region->type != MULTIBOOT_MEMORY_AVAILABLE)
             continue;
 
-        end = entry->addr + entry->len;
+        end = region->addr + region->len;
         if (max_end < end)
             max_end = end;
     }
-    ram_size = max_end;
-    return align_up(max_end, PAGE_SIZE);
+    ram_size = align_up(max_end, PAGE_SIZE);
 }
 
 /*
  * Aligns all usable memory regions in the memory map to page boundaries.
- * BIOS-provided memory map entries are not guaranteed to be page-aligned,
+ * BIOS-provided memory map regions are not guaranteed to be page-aligned,
  * so this adjustment ensures that the physical memory allocator can manage
  * pages cleanly without overlapping partial regions.
  */
 static void mmap_align(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entry;
+    multiboot_memory_map_t *region;
     uint64_t aligned_addr;
     uint64_t delta;
 
     for (size_t i = 0; i < mmap->count; i++) {
-        entry = &mmap->entries[i];
+        region = &mmap->regions[i];
 
-        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
+        if (region->type != MULTIBOOT_MEMORY_AVAILABLE)
             continue;
 
-        aligned_addr = align_up(entry->addr, PAGE_SIZE);
-        delta = aligned_addr - entry->addr;
+        aligned_addr = align_up(region->addr, PAGE_SIZE);
+        delta = aligned_addr - region->addr;
 
-        if (entry->len <= delta) {
-            entry->type = MULTIBOOT_MEMORY_RESERVED;
+        if (region->len <= delta) {
+            region->type = MULTIBOOT_MEMORY_RESERVED;
         } else {
-            entry->len -= delta;
-            entry->addr  = aligned_addr;
+            region->len -= delta;
+            region->addr  = aligned_addr;
         }
     }
 }
@@ -109,7 +108,7 @@ static void pages_register(struct memory_map *mmap)
     size_t order;
 
     for (size_t i = 0; i < mmap->count; i++) {
-        e = &mmap->entries[i];
+        e = &mmap->regions[i];
 
         if (e->type != MULTIBOOT_MEMORY_AVAILABLE)
             continue;
@@ -148,10 +147,10 @@ static void pages_register(struct memory_map *mmap)
  * motherboard BIOS area and is therefore permanently reserved. This architectural
  * constraint guarantees that the next memory region in the E820 map must begin
  * exactly at 1 MiB. In other words, if the system has successfully booted the kernel,
- * then the E820 memory map must include an entry with:
+ * then the E820 memory map must include an region with:
  *
- *     entry->type == MULTIBOOT_MEMORY_AVAILABLE
- *     entry->addr == K_PLOAD_START   // must be exactly 1 MiB
+ *     region->type == MULTIBOOT_MEMORY_AVAILABLE
+ *     region->addr == K_PLOAD_START   // must be exactly 1 MiB
  *
  * GRUB verifies that the kernel’s physical load range lies entirely within such an
  * available memory region before placing the kernel at 1 MiB. If no region begins
@@ -160,22 +159,22 @@ static void pages_register(struct memory_map *mmap)
  */
 static void mmap_reserve_kernel(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entry;
+    multiboot_memory_map_t *region;
 
     for (size_t i = 0; i < mmap->count; i++) {
-        entry = &mmap->entries[i];
+        region = &mmap->regions[i];
 
-        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
+        if (region->type != MULTIBOOT_MEMORY_AVAILABLE)
             continue;
 
-        if (entry->addr != K_PLOAD_START)
+        if (region->addr != K_PLOAD_START)
             continue;
 
-        if (entry->len == KERNEL_SIZE) {
-            entry->type = MULTIBOOT_MEMORY_RESERVED;
+        if (region->len == KERNEL_SIZE) {
+            region->type = MULTIBOOT_MEMORY_RESERVED;
         } else {
-            entry->len -= KERNEL_SIZE;
-            entry->addr += KERNEL_SIZE;
+            region->len -= KERNEL_SIZE;
+            region->addr += KERNEL_SIZE;
         }
     }
 }
@@ -243,13 +242,13 @@ static void mmap_copy_from_grub(struct memory_map *mmap, multiboot_info_t *mbd)
 
     mmap->count = find_mmap_count(mbd->mmap_length);
     if (mmap->count > MAX_MMAP)
-        do_panic("Abnormal number of GRUB memory map entries");
-    mmap_memcpy(mmap->entries, (multiboot_memory_map_t *)mbd->mmap_addr, mmap->count);
+        do_panic("Abnormal number of GRUB memory map regions");
+    mmap_memcpy(mmap->regions, (multiboot_memory_map_t *)mbd->mmap_addr, mmap->count);
 
     mbd_mmap_pages_unmap(mbd);
 }
 
-static multiboot_memory_map_t *mmap_largest_available_entry(struct memory_map *mmap)
+static multiboot_memory_map_t *mmap_largest_available_region(struct memory_map *mmap)
 {
     multiboot_memory_map_t *best;
     multiboot_memory_map_t *e;
@@ -261,7 +260,7 @@ static multiboot_memory_map_t *mmap_largest_available_entry(struct memory_map *m
     best_len = 0;
 
     for (size_t i = 0; i < mmap->count; i++) {
-        e = &mmap->entries[i];
+        e = &mmap->regions[i];
 
         if (e->type != MULTIBOOT_MEMORY_AVAILABLE)
             continue;
@@ -302,10 +301,10 @@ static void mmap_reserve_metadata(struct memory_map *mmap,
 
     /* before */
     if (meta_addr > orig_addr) {
-        mmap->entries[count] = *best;
-        mmap->entries[count].addr = orig_addr;
-        mmap->entries[count].len = meta_addr - orig_addr;
-        mmap->entries[count].type = MULTIBOOT_MEMORY_AVAILABLE;
+        mmap->regions[count] = *best;
+        mmap->regions[count].addr = orig_addr;
+        mmap->regions[count].len = meta_addr - orig_addr;
+        mmap->regions[count].type = MULTIBOOT_MEMORY_AVAILABLE;
         count++;
     }
 
@@ -316,10 +315,10 @@ static void mmap_reserve_metadata(struct memory_map *mmap,
 
     /* after */
     if (meta_end < orig_end) {
-        mmap->entries[count] = *best;
-        mmap->entries[count].addr = meta_end;
-        mmap->entries[count].len = orig_end - meta_end;
-        mmap->entries[count].type = MULTIBOOT_MEMORY_AVAILABLE;
+        mmap->regions[count] = *best;
+        mmap->regions[count].addr = meta_end;
+        mmap->regions[count].len = orig_end - meta_end;
+        mmap->regions[count].type = MULTIBOOT_MEMORY_AVAILABLE;
         count++;
     }
 
@@ -328,25 +327,25 @@ static void mmap_reserve_metadata(struct memory_map *mmap,
 
 size_t page_allocator_init(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entry;
+    multiboot_memory_map_t *region;
     uintptr_t vaddr;
-    size_t page_count;
-    size_t metadata_size;
+    size_t total_pages;
+    size_t pagemap_size;
     size_t order;
     size_t leftover;
 
-    page_count = ram_size / PAGE_SIZE;
-    metadata_size = sizeof(struct page) * page_count;
+    total_pages = ram_size / PAGE_SIZE;
+    pagemap_size = sizeof(struct page) * total_pages;
 
-    entry = mmap_largest_available_entry(mmap);
-    if (!entry)
+    region = mmap_largest_available_region(mmap);
+    if (!region)
         do_panic("No available RAM for page metadata");
 
-    mmap_reserve_metadata(mmap, entry, metadata_size);
+    mmap_reserve_metadata(mmap, region, pagemap_size);
 
-    vaddr = pages_initmap(entry->addr, entry->len,
+    vaddr = pages_initmap(region->addr, region->len,
                           PG_PS | PG_RDWR | PG_PRESENT);
-    memset((void *)vaddr, 0, entry->len);
+    memset((void *)vaddr, 0, region->len);
 
     page_map = (struct page *)vaddr;
 
@@ -355,7 +354,7 @@ size_t page_allocator_init(struct memory_map *mmap)
 
     pages_register(mmap);
 
-    leftover = entry->len - metadata_size;
+    leftover = region->len - pagemap_size;
     return leftover;
 }
 
@@ -506,11 +505,10 @@ void pmm_init(multiboot_info_t *mbd)
 
     mmap_copy_from_grub(&mmap, mbd);
     mmap_trim_highmem(&mmap);
-    
-    ram_size_init(&mmap);
-
     mmap_reserve_kernel(&mmap);
     mmap_align(&mmap);
+
+    ram_size_init(&mmap);
 
     page_allocator_init(&mmap);
 }

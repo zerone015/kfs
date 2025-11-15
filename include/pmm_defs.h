@@ -24,7 +24,7 @@ struct page {
 };
 
 struct memory_map {
-    multiboot_memory_map_t entries[MAX_MMAP + 2];
+    multiboot_memory_map_t regions[MAX_MMAP + 2];
     size_t count;
 };
 
