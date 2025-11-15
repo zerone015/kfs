@@ -6,7 +6,7 @@
 #include "paging.h"
 #include "list.h"
 
-#define MAX_MMAP			50
+#define MAX_MMAP			62
 #define MAX_BLOCK_SIZE		0x00400000U
 #define MAX_ORDER			__builtin_ffs(MAX_BLOCK_SIZE / PAGE_SIZE)
 #define K_PLOAD_START		((size_t)(&_kernel_start))
