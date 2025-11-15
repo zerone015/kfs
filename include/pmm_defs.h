@@ -14,7 +14,11 @@
 #define KERNEL_SIZE			(K_PLOAD_END - K_PLOAD_START)
 #define PAGE_NONE			((size_t)-1)
 
+/* struct page flags */
+#define PAGE_FREE			(1 << 0)
+
 struct page {
+	uint32_t flags;
 	uint32_t ref_count;
 	struct list_head free_list;
 };
@@ -25,7 +29,6 @@ struct memory_map {
 };
 
 struct buddy_order {
-	uint32_t *bitmap;
 	struct list_head free_list;
 };
 

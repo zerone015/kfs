@@ -21,37 +21,52 @@ struct page *page_map;
 static void mmap_trim_highmem(struct memory_map *mmap)
 {
     multiboot_memory_map_t *entry;
+    uint64_t end;
 
     for (size_t i = 0; i < mmap->count; i++) {
         entry = &mmap->entries[i];
-        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (entry->addr >= MAX_RAM_SIZE)
-                entry->type = MULTIBOOT_MEMORY_RESERVED;
-            else if (entry->addr + entry->len > MAX_RAM_SIZE)
-                entry->len -= entry->addr + entry->len - MAX_RAM_SIZE;
+
+        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
+            continue;
+
+        if (entry->addr >= MAX_RAM_SIZE) {
+            entry->type = MULTIBOOT_MEMORY_RESERVED;
+            continue;
         }
-	}
+
+        end = entry->addr + entry->len;
+        if (end > MAX_RAM_SIZE)
+            entry->len -= end - MAX_RAM_SIZE;
+    }
 }
 
 /*
- * Calculates the total physical memory size from the Multiboot memory map.
- * The result indicates the highest physical address available in the system,
- * aligned to a page boundary.
- * This value is used as a reference when determining the size of
- * physical memory management metadata structures (e.g., struct page array).
+ * Computes the highest usable physical address from the Multiboot memory map,
+ * aligned to PAGE_SIZE, and stores it in the global 'ram_size'.
+ *
+ * The resulting RAM size is used to determine the size of physical memory
+ * metadata structures (e.g., the struct page array).
  */
-static uint64_t calc_ram_size(struct memory_map *mmap)
+static uint64_t ram_size_init(struct memory_map *mmap)
 {
     multiboot_memory_map_t *entry;
+    uint64_t max_end;
+    uint64_t end;
+
+    max_end = 0;
 
     for (size_t i = 0; i < mmap->count; i++) {
         entry = &mmap->entries[i];
-        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (ram_size < entry->addr + entry->len)
-                ram_size = entry->addr + entry->len;
-        }
-	}
-    return align_up(ram_size, PAGE_SIZE);
+
+        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
+            continue;
+
+        end = entry->addr + entry->len;
+        if (max_end < end)
+            max_end = end;
+    }
+    ram_size = max_end;
+    return align_up(max_end, PAGE_SIZE);
 }
 
 /*
@@ -64,67 +79,84 @@ static void mmap_align(struct memory_map *mmap)
 {
     multiboot_memory_map_t *entry;
     uint64_t aligned_addr;
+    uint64_t delta;
 
     for (size_t i = 0; i < mmap->count; i++) {
         entry = &mmap->entries[i];
-        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
-            aligned_addr = align_up(entry->addr, PAGE_SIZE);
-            if (entry->len <= aligned_addr - entry->addr) {
-                entry->type = MULTIBOOT_MEMORY_RESERVED;
-            } else {
-                entry->len -= aligned_addr - entry->addr;
-                entry->addr = aligned_addr;
-            }
+
+        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
+            continue;
+
+        aligned_addr = align_up(entry->addr, PAGE_SIZE);
+        delta = aligned_addr - entry->addr;
+
+        if (entry->len <= delta) {
+            entry->type = MULTIBOOT_MEMORY_RESERVED;
+        } else {
+            entry->len -= delta;
+            entry->addr  = aligned_addr;
         }
-	}
-}
-
-static void bitmap_init(uintptr_t v_addr, size_t page_count)
-{
-    size_t first_size;
-
-    first_size = ceil_div(page_count, 16);
-    for (size_t order = 0; order < MAX_ORDER; order++) {
-        bd_alloc.orders[order].bitmap = (uint32_t *)v_addr;
-        v_addr += align_up(first_size, 4);
-        first_size /= 2;
-        if (first_size < 32)
-            first_size = 32;
-    }
-}
-
-static void freelist_init(void)
-{
-    for (size_t order = 0; order < MAX_ORDER; order++) {
-        init_list_head(&bd_alloc.orders[order].free_list);
     }
 }
 
 static void pages_register(struct memory_map *mmap)
 {
-    multiboot_memory_map_t *entry;
+    multiboot_memory_map_t *e;
     uintptr_t addr;
-    size_t page_count;
+    uintptr_t end;
+    uintptr_t usable_end;
+    size_t bsize;
+    size_t order;
 
     for (size_t i = 0; i < mmap->count; i++) {
-        entry = &mmap->entries[i];
-        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
-            addr = (uintptr_t)entry->addr;
-            page_count = entry->len / PAGE_SIZE;
-            while (page_count) {
-                free_pages(addr, PAGE_SIZE);
-                addr += PAGE_SIZE;
-                page_count--;
+        e = &mmap->entries[i];
+
+        if (e->type != MULTIBOOT_MEMORY_AVAILABLE)
+            continue;
+
+        addr = (uintptr_t)e->addr;
+        end = addr + e->len;
+        usable_end = align_down(end, PAGE_SIZE);
+
+        if (usable_end <= addr)
+            continue;
+
+        while (addr < usable_end) {
+            for (order = MAX_ORDER - 1; order > 0; order--) {
+                bsize = block_size(order);
+
+                if (is_aligned(addr, bsize) &&
+                    addr + bsize <= usable_end)
+                    break;
             }
+            bsize = block_size(order);
+            
+            free_pages(addr, bsize);
+            addr += bsize;
         }
-	}
+    }
 }
 
 /*
  * In the memory map provided by GRUB, the physical region where the kernel is loaded
  * is still marked as available memory. This must be corrected before initializing
  * the physical memory allocator to prevent the kernel image from being overwritten.
- * This function marks the kernel's physical load area as reserved in the memory map.
+ *
+ * The kernel is physically loaded at 1 MiB (K_PLOAD_START = 0x00100000), as defined
+ * by the linker script and required by the boot flow. On PC-compatible hardware,
+ * the 64 KiB region immediately below 1 MiB (0x000F0000–0x000FFFFF) is always the
+ * motherboard BIOS area and is therefore permanently reserved. This architectural
+ * constraint guarantees that the next memory region in the E820 map must begin
+ * exactly at 1 MiB. In other words, if the system has successfully booted the kernel,
+ * then the E820 memory map must include an entry with:
+ *
+ *     entry->type == MULTIBOOT_MEMORY_AVAILABLE
+ *     entry->addr == K_PLOAD_START   // must be exactly 1 MiB
+ *
+ * GRUB verifies that the kernel’s physical load range lies entirely within such an
+ * available memory region before placing the kernel at 1 MiB. If no region begins
+ * at this exact address, the system would not have been able to boot in the first place.
+ *
  */
 static void mmap_reserve_kernel(struct memory_map *mmap)
 {
@@ -132,133 +164,20 @@ static void mmap_reserve_kernel(struct memory_map *mmap)
 
     for (size_t i = 0; i < mmap->count; i++) {
         entry = &mmap->entries[i];
-        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
-            if (entry->addr == K_PLOAD_START) {
-                if (entry->len == KERNEL_SIZE) {
-                    entry->type = MULTIBOOT_MEMORY_RESERVED;
-                } else {
-                    entry->len -= KERNEL_SIZE;
-                    entry->addr += KERNEL_SIZE;
-                }
-            }
-        }
-	}
-}
 
-static size_t calc_bitmap_size(size_t page_count)
-{
-    size_t first_size;
-    size_t sum;
-
-    sum = 0;
-    first_size = ceil_div(page_count, 16);
-    for (size_t order = 0; order < MAX_ORDER; order++) {
-        sum += align_up(first_size, 4);
-        first_size /= 2;
-        if (first_size < 32)
-            first_size = 32;
-    }
-    return sum;
-}
-
-static size_t calc_pagemap_size(size_t page_count)
-{
-    return sizeof(struct page) * page_count;
-}
-
-static multiboot_memory_map_t *mmap_alloc_metadata(struct memory_map *mmap, size_t metadata_size)
-{
-    multiboot_memory_map_t *best;
-    multiboot_memory_map_t *entry;
-    uint64_t max_len;
-    uint64_t start;
-    uint64_t len;
-    uint64_t orig_addr;
-    uint64_t orig_len;
-    uint64_t meta_addr;
-    uint64_t meta_end;
-    size_t count;
-    size_t i;
-
-    best = NULL;
-    entry = NULL;
-    max_len = 0;
-    metadata_size = align_up(metadata_size, K_PAGE_SIZE);
-
-    /* find the largest usable region */
-    for (i = 0; i < mmap->count; i++) {
-        entry = &mmap->entries[i];
         if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
             continue;
 
-        start = align_up(entry->addr, K_PAGE_SIZE);
-        if (start >= entry->addr + entry->len)
+        if (entry->addr != K_PLOAD_START)
             continue;
 
-        len = entry->addr + entry->len - start;
-        if (len >= metadata_size && len > max_len) {
-            max_len = len;
-            best = entry;
+        if (entry->len == KERNEL_SIZE) {
+            entry->type = MULTIBOOT_MEMORY_RESERVED;
+        } else {
+            entry->len -= KERNEL_SIZE;
+            entry->addr += KERNEL_SIZE;
         }
     }
-
-    if (best == NULL)
-        return NULL;
-
-    orig_addr = best->addr;
-    orig_len  = best->len;
-    meta_addr = align_up(orig_addr, K_PAGE_SIZE);
-    meta_end  = meta_addr + metadata_size;
-    count = mmap->count;
-
-    /* before region */
-    if (meta_addr > orig_addr) {
-        mmap->entries[count] = *best;
-        mmap->entries[count].len = meta_addr - orig_addr;
-        mmap->entries[count].type = MULTIBOOT_MEMORY_AVAILABLE;
-        count++;
-    }
-
-    /* metadata region itself */
-    best->addr = meta_addr;
-    best->len  = metadata_size;
-    best->type = MULTIBOOT_MEMORY_RESERVED;
-
-    /* after region */
-    if (meta_end < orig_addr + orig_len) {
-        mmap->entries[count] = *best;
-        mmap->entries[count].addr = meta_end;
-        mmap->entries[count].len = (orig_addr + orig_len) - meta_end;
-        mmap->entries[count].type = MULTIBOOT_MEMORY_AVAILABLE;
-        count++;
-    }
-
-    mmap->count = count;
-    return best;
-}
-
-static size_t page_allocator_init(struct memory_map *mmap)
-{
-    uintptr_t v_addr;
-    size_t page_count;
-    size_t metadata_size;
-    multiboot_memory_map_t *entry;
-    size_t pagemap_size;
-
-    page_count = ram_size / PAGE_SIZE;
-    metadata_size = calc_bitmap_size(page_count);
-    pagemap_size = calc_pagemap_size(page_count);
-    metadata_size += pagemap_size;
-    entry = mmap_alloc_metadata(mmap, metadata_size);
-    if (!entry)
-        do_panic("Not enough memory for pmm allocation");
-    v_addr = pages_initmap(entry->addr, entry->size, PG_PS | PG_RDWR | PG_PRESENT);
-    memset((void *)v_addr, 0, entry->size);
-    page_map = (struct page *)v_addr;
-    bitmap_init(v_addr + pagemap_size, page_count);
-    freelist_init();
-    pages_register(mmap);
-    return entry->size - metadata_size;
 }
 
 static uintptr_t mmap_pages_map(uintptr_t mmap_addr, size_t mmap_size)
@@ -266,20 +185,24 @@ static uintptr_t mmap_pages_map(uintptr_t mmap_addr, size_t mmap_size)
     uintptr_t v_addr;
 
     mmap_size += K_PAGE_SIZE;
-    v_addr = pages_initmap(mmap_addr, mmap_size, PG_PS | PG_RDWR | PG_PRESENT);
+    v_addr = pages_initmap(mmap_addr, mmap_size, 
+                           PG_PS | PG_RDWR | PG_PRESENT);
+
     return v_addr | k_addr_get_offset(mmap_addr);
 }
 
-static size_t find_mmap_count(size_t mmap_length)
+static size_t find_mmap_count(size_t len)
 {
-    size_t mmap_count;
-    size_t mmap_size;
+    size_t count;
+    size_t size;
 
-    mmap_count = 0;
-    mmap_size = sizeof(multiboot_memory_map_t);
-    for (size_t i = mmap_size; i <= mmap_length; i += mmap_size)
-        mmap_count++;
-    return mmap_count;
+    count = 0;
+    size = sizeof(multiboot_memory_map_t);
+
+    for (size_t i = size; i <= len; i += size)
+        count++;
+
+    return count;
 }
 
 static void mmap_memcpy(multiboot_memory_map_t *dest, multiboot_memory_map_t *src, size_t mmap_count)
@@ -293,167 +216,17 @@ static void mbd_mmap_pages_unmap(multiboot_info_t* mbd)
     uint32_t *pde;
 
     pde = pde_from_addr(mbd->mmap_addr);
+
     for (size_t i = 0; i < ((align_up(mbd->mmap_length, K_PAGE_SIZE) + K_PAGE_SIZE) / K_PAGE_SIZE); i++) {
         pde[i] = 0;
         tlb_invl(mbd->mmap_addr);
         mbd->mmap_addr += K_PAGE_SIZE;
     }
+    
     pde = pde_from_addr(mbd);
     *pde = 0;
+
     tlb_invl((uintptr_t)mbd);
-}
-
-static bool marker_is_set(uint32_t *bitmap, size_t offset)
-{
-    return BIT_CHECK(bitmap[offset / 32], offset % 32);
-}
-
-static void marker_set(uint32_t *bitmap, size_t offset)
-{
-    BIT_SET(bitmap[offset / 32], offset % 32);
-}
-
-static void marker_clear(uint32_t *bitmap, size_t offset)
-{
-    BIT_CLEAR(bitmap[offset / 32], offset % 32);
-}
-
-static uintptr_t calc_addr(size_t order, size_t offset)
-{
-    return block_size(order) * offset;   
-}
-
-static size_t pfn_from_page(struct page *pg)
-{
-    return (size_t)(pg - page_map);
-}
-
-struct page *get_page(size_t pfn)
-{
-    return page_map + pfn;
-}
-
-static size_t base_pfn(size_t addr, size_t order)
-{
-    size_t block_pages;
-    size_t pfn;
-
-    block_pages = 1 << order;
-    pfn = pfn_from_phys_addr(addr); 
-    return align_down(pfn, block_pages);
-}
-
-static struct page *bd_base_page(size_t addr, size_t order)
-{
-    size_t block_pages;
-    size_t buddy_pfn;
-
-    block_pages = 1 << order;
-    buddy_pfn = base_pfn(addr, order) ^ block_pages;
-    return get_page(buddy_pfn);
-}
-
-static struct page *base_page(size_t addr, size_t order)
-{
-    size_t pfn;
-
-    pfn = base_pfn(addr, order);
-    return get_page(pfn);
-}
-
-size_t alloc_pages(size_t size)
-{
-    struct page *page;
-    uint32_t *bitmap;
-    struct list_head *free_list;
-    size_t initial_order;
-    size_t current_order;
-    size_t offset;
-    size_t pfn;
-    size_t addr;
-    size_t bd_addr;
-    size_t split_block_size;
-
-    initial_order = 0;
-    while (size > block_size(initial_order))
-        initial_order++;
-
-    for (current_order = initial_order; current_order < MAX_ORDER; current_order++) {
-        free_list = &bd_alloc.orders[current_order].free_list;
-        if (!list_empty(free_list)) {
-            page = list_first_entry(free_list, struct page, free_list);
-            list_del(&page->free_list);
-
-            pfn = pfn_from_page(page);
-            addr = phys_addr_from_pfn(pfn);
-            offset = addr / block_size(current_order) / 2;
-            
-            bitmap = bd_alloc.orders[current_order].bitmap;
-            marker_clear(bitmap, offset);
-
-            while (initial_order < current_order) {
-                current_order--; 
-                
-                split_block_size = block_size(current_order); 
-                
-                bd_addr = addr + split_block_size; 
-
-                bitmap = bd_alloc.orders[current_order].bitmap;
-                offset = bd_addr / split_block_size / 2; 
-                marker_set(bitmap, offset); 
-
-                free_list = &bd_alloc.orders[current_order].free_list;
-                pfn = pfn_from_phys_addr(bd_addr);
-                page = get_page(pfn);
-                page->ref_count = 0;
-                list_add(&page->free_list, free_list);
-            }
-            return addr; 
-        }
-    }
-    return PAGE_NONE;
-}
-
-/*
- * Frees a page block and performs buddy merging when possible.
- * The base_page represents the head page of the page block for the given order,
- * serving as the canonical representative of the entire block.
- * Bitmap markers indicate whether the corresponding buddy block is free;
- * when set, the allocator merges both blocks into a higher-order block.
- * The bitmap at the final merged order is recorded but not consulted again,
- * as there is no higher-order block to merge into.
- */
-void free_pages(size_t addr, size_t size)
-{
-    struct page *page, *bd_page;
-	uint32_t *bitmap;
-	size_t order, offset;
-
-    order = 0;
-	while (size > block_size(order))
-		order++;
-
-    offset = addr / block_size(order) / 2;
-	bitmap = bd_alloc.orders[order].bitmap;
-
-    while (order < MAX_ORDER - 1) {
-        if (!marker_is_set(bitmap, offset))
-            break;
-        marker_clear(bitmap, offset);
-
-        bd_page = bd_base_page(addr, order);
-        list_del(&bd_page->free_list);
-
-        offset /= 2;
-        order++;
-        bitmap = bd_alloc.orders[order].bitmap;
-    }
-    marker_set(bitmap, offset);
-
-    page = base_page(addr, order);
-    page->ref_count = 0;
-
-    list_add(&page->free_list, &bd_alloc.orders[order].free_list);
 }
 
 /*
@@ -464,26 +237,281 @@ void free_pages(size_t addr, size_t size)
  * Therefore, temporarily map the mmap pages with mmap_pages_map(), copy them,
  * and then unmap the original mapping.
  */
-static void mmap_copy_from_grub(struct memory_map *mmap,
-                                  multiboot_info_t *mbd)
+static void mmap_copy_from_grub(struct memory_map *mmap, multiboot_info_t *mbd)
 {
     mbd->mmap_addr = mmap_pages_map(mbd->mmap_addr, mbd->mmap_length);
+
     mmap->count = find_mmap_count(mbd->mmap_length);
     if (mmap->count > MAX_MMAP)
         do_panic("Abnormal number of GRUB memory map entries");
     mmap_memcpy(mmap->entries, (multiboot_memory_map_t *)mbd->mmap_addr, mmap->count);
+
     mbd_mmap_pages_unmap(mbd);
 }
 
-void pmm_init(multiboot_info_t* mbd)
+static multiboot_memory_map_t *mmap_largest_available_entry(struct memory_map *mmap)
+{
+    multiboot_memory_map_t *best;
+    multiboot_memory_map_t *e;
+    uint64_t best_len;
+    uint64_t start;
+    uint64_t usable;
+
+    best = NULL;
+    best_len = 0;
+
+    for (size_t i = 0; i < mmap->count; i++) {
+        e = &mmap->entries[i];
+
+        if (e->type != MULTIBOOT_MEMORY_AVAILABLE)
+            continue;
+
+        start = align_up(e->addr, K_PAGE_SIZE);
+        if (start >= e->addr + e->len)
+            continue;
+
+        usable = (e->addr + e->len) - start;
+        if (usable > best_len) {
+            best_len = usable;
+            best = e;
+        }
+    }
+    return best;
+}
+
+static void mmap_reserve_metadata(struct memory_map *mmap,
+                                                    multiboot_memory_map_t *best,
+                                                    size_t metadata_size)
+{
+    uint64_t orig_addr;
+    uint64_t orig_len;
+    uint64_t meta_addr;
+    uint64_t meta_end;
+    uint64_t orig_end;
+    size_t count;
+
+    metadata_size = align_up(metadata_size, K_PAGE_SIZE);
+
+    orig_addr = best->addr;
+    orig_len = best->len;
+    orig_end = orig_addr + orig_len;
+
+    meta_addr = align_up(orig_addr, K_PAGE_SIZE);
+    meta_end = meta_addr + metadata_size;
+    count = mmap->count;
+
+    /* before */
+    if (meta_addr > orig_addr) {
+        mmap->entries[count] = *best;
+        mmap->entries[count].addr = orig_addr;
+        mmap->entries[count].len = meta_addr - orig_addr;
+        mmap->entries[count].type = MULTIBOOT_MEMORY_AVAILABLE;
+        count++;
+    }
+
+    /* metadata */
+    best->addr = meta_addr;
+    best->len = metadata_size;
+    best->type = MULTIBOOT_MEMORY_RESERVED;
+
+    /* after */
+    if (meta_end < orig_end) {
+        mmap->entries[count] = *best;
+        mmap->entries[count].addr = meta_end;
+        mmap->entries[count].len = orig_end - meta_end;
+        mmap->entries[count].type = MULTIBOOT_MEMORY_AVAILABLE;
+        count++;
+    }
+
+    mmap->count = count;
+}
+
+size_t page_allocator_init(struct memory_map *mmap)
+{
+    multiboot_memory_map_t *entry;
+    uintptr_t vaddr;
+    size_t page_count;
+    size_t metadata_size;
+    size_t order;
+    size_t leftover;
+
+    page_count = ram_size / PAGE_SIZE;
+    metadata_size = sizeof(struct page) * page_count;
+
+    entry = mmap_largest_available_entry(mmap);
+    if (!entry)
+        do_panic("No available RAM for page metadata");
+
+    mmap_reserve_metadata(mmap, entry, metadata_size);
+
+    vaddr = pages_initmap(entry->addr, entry->len,
+                          PG_PS | PG_RDWR | PG_PRESENT);
+    memset((void *)vaddr, 0, entry->len);
+
+    page_map = (struct page *)vaddr;
+
+    for (order = 0; order < MAX_ORDER; order++)
+        init_list_head(&bd_alloc.orders[order].free_list);
+
+    pages_register(mmap);
+
+    leftover = entry->len - metadata_size;
+    return leftover;
+}
+
+static size_t pfn_from_page(struct page *pg)
+{
+	return (size_t)(pg - page_map);
+}
+
+static struct page *page_from_pfn(size_t pfn)
+{
+	return page_map + pfn;
+}
+
+static size_t page_order(size_t size)
+{
+	size_t order = 0;
+
+	while (size > block_size(order))
+		order++;
+	return order;
+}
+
+static bool page_is_free(struct page *page)
+{
+	return page->flags & PAGE_FREE;
+}
+
+static void page_clear_free(struct page *page)
+{
+	page->flags &= ~PAGE_FREE;
+}
+
+static void page_set_free(struct page *page)
+{
+	page->flags |= PAGE_FREE;
+}
+
+/*
+ * Buddy allocator invariant:
+ * - free_list[order] contains only blocks whose PFN is aligned to
+ * 2^order pages (i.e., each block is the left/base of its pair).
+ *
+ * Free/alloc operations maintain this invariant.
+ */
+size_t alloc_pages(size_t size)
+{
+	struct page *page = NULL;   /* GCC false-positive: maybe-uninitialized */
+	struct page *right_page;
+	struct list_head *free_list;
+	size_t order;
+	size_t cur_order;
+	size_t pfn;
+	size_t right_pfn;
+	size_t bpages;
+
+	order = page_order(size);
+
+	for (cur_order = order; cur_order < MAX_ORDER; cur_order++) {
+		free_list = &bd_alloc.orders[cur_order].free_list;
+		if (!list_empty(free_list)) {
+			page = list_first_entry(free_list, struct page, free_list);
+			list_del(&page->free_list);
+			break;
+		}
+	}
+
+	if (cur_order == MAX_ORDER)
+		return PAGE_NONE;
+
+	pfn = pfn_from_page(page);
+
+	/*
+	 * Split a larger block into two smaller buddy blocks.
+	 *
+	 * Since the block taken from free_list[cur_order] is always base-aligned
+	 * (maintained by free_pages()), 'pfn' already points to the left child.
+	 *
+	 * So right child = pfn + (2^cur_order), and left child (pfn) is split again.
+	 */
+	while (cur_order > order) {
+		cur_order--;
+
+		bpages = block_pages(cur_order);
+
+		right_pfn = pfn + bpages;
+		right_page = page_from_pfn(right_pfn);
+		right_page->ref_count = 0;
+		page_set_free(right_page);
+
+		free_list = &bd_alloc.orders[cur_order].free_list;
+		list_add(&right_page->free_list, free_list);
+	}
+
+    page = page_from_pfn(pfn);
+	page_clear_free(page);
+	return phys_addr_from_pfn(pfn);
+}
+
+void free_pages(size_t addr, size_t size)
+{
+	struct page *page;
+	struct page *buddy;
+	size_t order;
+	size_t pfn;
+	size_t buddy_pfn;
+	size_t bpages;
+
+	order = page_order(size);
+
+	pfn = pfn_from_phys_addr(addr);
+
+	/*
+	 * Merge with buddy blocks while possible.
+	 *
+	 * buddy_pfn = pfn XOR (2^order) gives the other half of the pair.
+	 * If buddy is free, remove it and merge into a higher-order block.
+	 *
+	 * After merging, the new block's base PFN is:
+	 * pfn &= ~((2 * bpages) - 1)
+	 * which ensures the merged block is base-aligned.
+	 */
+	while (order < MAX_ORDER - 1) {
+		bpages = block_pages(order);
+
+		buddy_pfn = pfn ^ bpages;
+		buddy = page_from_pfn(buddy_pfn);
+
+		if (!page_is_free(buddy))
+			break;
+
+		list_del(&buddy->free_list);
+		page_clear_free(buddy);
+
+        pfn = align_down(pfn, 2*bpages);
+		order++;
+	}
+
+	page = page_from_pfn(pfn);
+	page->ref_count = 0;
+	page_set_free(page);
+
+	list_add(&page->free_list, &bd_alloc.orders[order].free_list);
+}
+
+void pmm_init(multiboot_info_t *mbd)
 {
     struct memory_map mmap;
 
     mmap_copy_from_grub(&mmap, mbd);
     mmap_trim_highmem(&mmap);
-    ram_size = calc_ram_size(&mmap);
+    
+    ram_size_init(&mmap);
+
     mmap_reserve_kernel(&mmap);
     mmap_align(&mmap);
+
     page_allocator_init(&mmap);
 }
 
