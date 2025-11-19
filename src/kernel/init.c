@@ -1,6 +1,6 @@
 #include "proc.h"
 #include "sched.h"
-#include "hmm.h"
+#include "kmalloc.h"
 #include "panic.h"
 #include "exec.h"
 #include "utils.h"
@@ -37,7 +37,7 @@ void init_process(void)
 	proc->sid = proc->pid;
 	proc->vblocks.by_base = RB_ROOT;
 	proc->vblocks.by_size = RB_ROOT;
-	proc->mapping_files.by_base = RB_ROOT;
+	proc->mapped_vblocks.by_base = RB_ROOT;
 
 	proc->current_signal = 0;
 	proc->sig_pending = 0;

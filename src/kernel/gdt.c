@@ -1,5 +1,5 @@
 #include "gdt.h"
-#include "hmm.h"
+#include "kmalloc.h"
 #include "panic.h"
 
 static struct gdt_entry gdt[GDT_SIZE];

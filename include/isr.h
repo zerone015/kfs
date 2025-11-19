@@ -1,5 +1,5 @@
-#ifndef _INTERRUPT_H
-#define _INTERRUPT_H
+#ifndef _ISR_H
+#define _ISR_H
 
 #include <stdint.h>
 #include "paging.h"

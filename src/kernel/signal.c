@@ -57,7 +57,7 @@ static void do_default_signal(int sig)
 
 static void prepare_signal_frame_setup(struct signal_frame *sf) 
 {
-    uint32_t *pte = pte_from_addr(sf);
+    uint32_t *pte = pte_from_va(sf);
     uintptr_t addr = (uintptr_t)sf;
 
     if (is_rdwr_cow(*pte))

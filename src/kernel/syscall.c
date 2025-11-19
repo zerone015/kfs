@@ -4,7 +4,7 @@
 #include "panic.h"
 #include "pmm.h"
 #include "vmm.h"
-#include "hmm.h"
+#include "kmalloc.h"
 #include "utils.h"
 #include "sched.h"
 #include "rbtree.h"
@@ -86,7 +86,7 @@ static int kill_many(int pid, int sig)
     return kill_to_group(pgrp, sig);
 }
 
-static struct task_struct *find_zombie_pgid(struct task_struct *parent, int pgid, bool *found)
+static struct task_struct *defunct_child_from_pgid(struct task_struct *parent, int pgid, bool *found)
 {
     struct task_struct *child;
 
@@ -101,7 +101,7 @@ static struct task_struct *find_zombie_pgid(struct task_struct *parent, int pgid
     return NULL;
 }
 
-static struct task_struct *find_zombie(struct task_struct *parent)
+static struct task_struct *defunct_child_from(struct task_struct *parent)
 {
     struct task_struct *child;
 
@@ -121,7 +121,7 @@ static bool access_ok(void *addr)
     return true;
 }
 
-static int reap_zombie(struct task_struct *child, int *status)
+static int child_reap(struct task_struct *child, int *status)
 {
     int ret;
     
@@ -131,7 +131,7 @@ static int reap_zombie(struct task_struct *child, int *status)
         *status = child->status;
     }
     if (current_signal(current, SIGCHLD)) {
-        if (!find_zombie(current))
+        if (!defunct_child_from(current))
             signal_pending_clear(current, SIGCHLD);
     }
     free_pid(child->pid);
@@ -144,7 +144,7 @@ static int reap_zombie(struct task_struct *child, int *status)
     return ret;
 }
 
-static int wait_for_child(uint8_t state, int *status, int options)
+static int __wait(uint8_t state, int *status, int options)
 {
     struct task_struct *child;
 
@@ -158,7 +158,7 @@ static int wait_for_child(uint8_t state, int *status, int options)
     if (current->wait_id == -1)
         return -ECHILD;
     child = process_lookup(current->wait_id);
-    return reap_zombie(child, status);
+    return child_reap(child, status);
 }
 
 static int wait_for_pid(int pid, int *status, int options)
@@ -169,9 +169,9 @@ static int wait_for_pid(int pid, int *status, int options)
     if (!child || current != child->parent)
         return -ECHILD;
     if (child->state == PROCESS_ZOMBIE)
-        return reap_zombie(child, status);
+        return child_reap(child, status);
     current->wait_id = child->pid;
-    return wait_for_child(PROCESS_WAIT_CHILD_PID, status, options);
+    return __wait(PROCESS_WAIT_CHILD_PID, status, options);
 }
 
 static int wait_for_pgid(int pgid, int *status, int options)
@@ -179,13 +179,13 @@ static int wait_for_pgid(int pgid, int *status, int options)
     struct task_struct *child;
     bool found;
     
-    child = find_zombie_pgid(current, pgid, &found);
+    child = defunct_child_from_pgid(current, pgid, &found);
     if (child)
-        return reap_zombie(child, status);
+        return child_reap(child, status);
     if (!found)
         return -ECHILD;
     current->wait_id = pgid;
-    return wait_for_child(PROCESS_WAIT_CHILD_PGID, status, options);
+    return __wait(PROCESS_WAIT_CHILD_PGID, status, options);
 }
 
 static int wait_for_any(int *status, int options)
@@ -194,72 +194,75 @@ static int wait_for_any(int *status, int options)
 
     if (list_empty(&current->children))
         return -ECHILD;
-    child = find_zombie(current);
+    child = defunct_child_from(current);
     if (child)
-        return reap_zombie(child, status);
-    return wait_for_child(PROCESS_WAIT_CHILD_ANY, status, options);
+        return child_reap(child, status);
+    return __wait(PROCESS_WAIT_CHILD_ANY, status, options);
 }
 
 static void pages_set_cow(void) 
 {
-    struct mapping_file *cur, *tmp;
+    struct mapped_vblock *cur, *tmp;
     struct rb_root *root;
     uint32_t *pte;
-    page_t page;
+    uintptr_t va;
+    size_t pa;
     
-    root = &current->mapping_files.by_base;
+    root = &current->mapped_vblocks.by_base;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
-        pte = pte_from_addr(cur->base);
-        for (size_t i = 0; i < (cur->size / PAGE_SIZE); i++) {
-            page = page_from_pte(pte[i]);
-            if (is_cow(pte[i])) {
-                page_ref_inc(page);
-            } 
-            else if (page_is_present(pte[i])) {
-                if (is_code_section(cur->base + (i*PAGE_SIZE))) {
+        pte = pte_from_va(cur->base);
+        for (size_t i = 0; i < cur->size / PAGE_SIZE; i++) {
+            va = cur->base + i*PAGE_SIZE;
+
+            if (!page_is_present(pte[i]))
+                continue;
+
+            if (!is_cow(pte[i])) {
+                if (code_section(va)) {
                     pte[i] |= PG_COW_RDONLY;
-                }
-                else {
+                } else {
                     pte[i] = (pte[i] | PG_COW_RDWR) & ~PG_RDWR;
-                    tlb_invl(cur->base + (i*PAGE_SIZE));
+                    tlb_invl(va);
                 }
-                page_set_shared(page);
             }
+
+            pa = pa_from_pte(pte[i]);
+            pgref_inc(pa);
         }
     }
 }
 
-static page_t pgdir_clone(void)
+static size_t pgdir_clone(void)
 {
     uint32_t *pgdir;
     void *pgtab;
-    page_t pgdir_page, pgtab_page;
+    size_t pgdir_page, pgtab_page;
 
     pgdir_page = alloc_pages(PAGE_SIZE);
-    pgdir = (uint32_t *)tmp_vmap(pgdir_page);
-    memcpy32(pgdir, current_pgdir(), PAGE_SIZE / 4);
+    pgdir = (uint32_t *)tmp_map(pgdir_page);
+    memcpy32(pgdir, pgdir_base(), PAGE_SIZE / 4);
     for (size_t i = 0; i < 768; i++) {
         if (pgdir[i]) {
             pgtab_page = alloc_pages(PAGE_SIZE);
-            pgtab = tmp_vmap(pgtab_page);
+            pgtab = tmp_map(pgtab_page);
             memcpy32(pgtab, pgtab_from_pdi(i), PAGE_SIZE / 4);
-            tmp_vunmap(pgtab);
+            tmp_unmap(pgtab);
             pgdir[i] = pgtab_page | pg_entry_flags(pgdir[i]);
         }
     }
     pgdir[1023] = pgdir_page | pg_entry_flags(pgdir[1023]);
-    tmp_vunmap(pgdir);
+    tmp_unmap(pgdir);
     return pgdir_page;
 }
 
-static int vblocks_clone(struct user_vblock_tree *vblocks)
+static int vblocks_clone(struct u_vblock_tree *vblocks)
 {
-    struct user_vblock *cur, *tmp, *new;
+    struct u_vblock *cur, *tmp, *new;
     struct rb_root *root;
 
     root = &current->vblocks.by_base;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
-        new = kmalloc(sizeof(struct user_vblock));
+        new = kmalloc(sizeof(struct u_vblock));
         if (!new)
             return -1;
         new->base = cur->base;
@@ -270,19 +273,19 @@ static int vblocks_clone(struct user_vblock_tree *vblocks)
     return 0;
 }
 
-static int mapping_files_clone(struct mapping_file_tree *mapping_files)
+static int mapped_vblocks_clone(struct mapped_vblock_tree *mapped_vblocks)
 {
-    struct mapping_file *cur, *tmp, *new;
+    struct mapped_vblock *cur, *tmp, *new;
     struct rb_root *root;
 
-    root = &current->mapping_files.by_base;
+    root = &current->mapped_vblocks.by_base;
     rbtree_postorder_for_each_entry_safe(cur, tmp, root, by_base) {
-        new = kmalloc(sizeof(struct mapping_file));
+        new = kmalloc(sizeof(struct mapped_vblock));
         if (!new)
             return -1;
         new->base = cur->base;
         new->size = cur->size;
-        mapping_file_add(new, &mapping_files->by_base);
+        mapped_vblock_add(new, &mapped_vblocks->by_base);
     }
     return 0;
 }
@@ -342,9 +345,9 @@ static int process_clone(struct ucontext *ucontext, struct task_struct **out_chi
     if (vblocks_clone(&child->vblocks) < 0)
         goto out_clean_vblocks_and_kstack;
     
-    child->mapping_files.by_base = RB_ROOT;
-    if (mapping_files_clone(&child->mapping_files) < 0)
-        goto out_clean_mapping_files;
+    child->mapped_vblocks.by_base = RB_ROOT;
+    if (mapped_vblocks_clone(&child->mapped_vblocks) < 0)
+        goto out_clean_mapped_vblocks;
 
     pages_set_cow();
     child->cr3 = pgdir_clone();
@@ -362,8 +365,8 @@ static int process_clone(struct ucontext *ucontext, struct task_struct **out_chi
     *out_child = child;
     return 0;
 
-out_clean_mapping_files:
-    mapping_files_cleanup(&child->mapping_files, false, false);
+out_clean_mapped_vblocks:
+    mapped_vblocks_cleanup(&child->mapped_vblocks, false, false);
 out_clean_vblocks_and_kstack:
     vblocks_cleanup(&child->vblocks);
     kfree((void *)(child->esp0 - KERNEL_STACK_SIZE));

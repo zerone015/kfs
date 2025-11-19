@@ -11,7 +11,7 @@
 #define TEST_SIGNAL_BASE        (USER_CODE_BASE + USER_CODE_SIZE)
 #define TEST_SIGNAL_SIZE        (PAGE_SIZE)
 
-#define is_code_section(addr)   (((addr) >= USER_CODE_BASE) && ((addr) < (USER_CODE_BASE + USER_CODE_SIZE)))
+#define code_section(addr)   (((addr) >= USER_CODE_BASE) && ((addr) < (USER_CODE_BASE + USER_CODE_SIZE)))
 
 void exec_fn(void (*func)());
 

@@ -1,5 +1,5 @@
 #include "sched.h"
-#include "hmm.h"
+#include "kmalloc.h"
 #include "panic.h"
 #include "exec.h"
 

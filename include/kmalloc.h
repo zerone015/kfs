@@ -1,5 +1,5 @@
-#ifndef _HMM_H
-#define _HMM_H
+#ifndef _KMALLOC_H
+#define _KMALLOC_H
 
 #include "list.h"
 #include "paging.h"
@@ -13,7 +13,8 @@ struct malloc_chunk {
 };
 
 #define SIZE_SZ             sizeof(size_t)
-#define FREE_LIST_MAX       (__builtin_ctz(K_VSPACE_SIZE / 2 / MIN_SIZE) + 1)
+#define MAX_CHUNK_SIZE      (K_VSPACE_SIZE / 2)
+#define FREE_LIST_MAX       (__builtin_ctz(MAX_CHUNK_SIZE / MIN_SIZE) + 1)  /* index 0 starts at MIN_SIZE */
 #define MALLOC_ALIGNMENT    SIZE_SZ
 #define MALLOC_ALIGN_MASK   (MALLOC_ALIGNMENT - 1)
 #define MIN_CHUNK_SIZE      sizeof(struct malloc_chunk)

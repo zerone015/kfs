@@ -1,4 +1,4 @@
-#include "interrupt.h"
+#include "isr.h"
 #include "tty.h"
 #include "pic.h"
 #include "io.h"
@@ -7,7 +7,7 @@
 #include "paging.h"
 #include "panic.h"
 #include "sched.h"
-#include "daemon.h"
+#include "init.h"
 #include "proc.h"
 #include "signal.h"
 
@@ -118,7 +118,7 @@ void page_fault_handle(uintptr_t fault_addr, int error_code)
 
     if (user_space(fault_addr)) {
         if (pgtab_allocated(fault_addr)) {
-            pte = pte_from_addr(fault_addr);
+            pte = pte_from_va(fault_addr);
             if (is_rdwr_cow(*pte)) {
                 cow_handle(pte, fault_addr);
                 return;
@@ -130,7 +130,7 @@ void page_fault_handle(uintptr_t fault_addr, int error_code)
         }
     } else {
         if (!pf_is_usermode(error_code)) {
-            pde = pde_from_addr(fault_addr);
+            pde = pde_from_va(fault_addr);
             if (entry_reserved(*pde)) {
                 MAKE_PRESENT_PDE(*pde);
                 return;

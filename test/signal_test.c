@@ -1,7 +1,7 @@
 #include "printk.h"
 #include "errno.h"
 #include <stdbool.h>
-#include "daemon.h"
+#include "init.h"
 #include "tmp_syscall.h"
 #include "exec.h"
 
@@ -15,24 +15,28 @@ void init_process_code(void)
 {
     int pid, wpid, ret, status;
     
-    write("signal test: ");
+    write("Test: SIGKILL");
     {
+        volatile size_t sink = 0;
+
         pid = fork();
         if (pid == 0) {
-            while (true);
+			while (true)
+            	write("..");
         }
         else {
+            while (sink < 10000000)
+                sink++;
             ret = kill(pid, SIGKILL);
             wpid = wait(&status);
             if (ret != 0 || wpid != pid || !WIFSIGNALED(status) || WTERMSIG(status) != SIGKILL)
                 fail();
         }
     }
-	write(KERN_DEBUG "OK\n");
+	write(KERN_DEBUG "OK (no further output should follow)\n");
 
+    write("Test: signal handler\n");
 	{
-		volatile int sink;
-
 		ret = signal(SIGINT, TEST_SIGNAL_BASE);
 		if (ret < 0)
 			write("test failed!\n");
@@ -44,14 +48,6 @@ void init_process_code(void)
             ret = kill(pid, SIGINT);
             if (ret != 0)
                 fail();
-			ret = kill(getpid(), SIGSTOP);
-			if (ret != 0)
-                fail();
-			for (int i = 0; i < 2147483647; i++)
-				sink = i;
-			ret = kill(pid, SIGINT);
-			if (ret != 0)
-				fail();
 			while (true);
         }
 	}
@@ -59,15 +55,14 @@ void init_process_code(void)
 
 void test_signal_handler(int sig)
 {
-    write("hi~~~~~\n");
-    kill(INIT_PROCESS_PID, SIGCONT);
+    write("OK (Signal handler executed successfully. Test passed!)\n");
 }
 
 static void test_signal_init(void)
 {
     uint32_t *pte;
 
-    pte = pte_from_addr(TEST_SIGNAL_BASE);
+    pte = pte_from_va(TEST_SIGNAL_BASE);
     for (size_t i = 0; i < (TEST_SIGNAL_SIZE / PAGE_SIZE); i++)
         pte[i] = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
 

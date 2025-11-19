@@ -1,17 +1,19 @@
 %include "offsets.inc"
 
-global switch_to_task
+global switch_to
+
 extern current
 extern tss
+
 section .text
-switch_to_task:
+switch_to:
     push ebx
     push esi
     push edi
     push ebp
 
     mov esi, [current]
-    mov [esi + OFFSET_TASK_ESP], esp     
+    mov [esi + OFFSET_TASK_ESP], esp
 
     mov edi, [esp + 20]
     mov [current], edi
@@ -24,10 +26,10 @@ switch_to_task:
     mov ecx, cr3
 
     cmp eax, ecx
-    je .doneVAS
+    je .done
     mov cr3, eax
     
-.doneVAS:
+.done:
     pop ebp
     pop edi
     pop esi

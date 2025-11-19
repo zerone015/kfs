@@ -15,52 +15,52 @@ LINKER = linker.ld
 HEADER-DIR = include
 SRC-DIR = src
 OBJ-DIR = build
-ASM-DIR = asm
 
-SRC = $(SRC-DIR)/kernel.c $(SRC-DIR)/tty.c $(SRC-DIR)/printk.c $(SRC-DIR)/utils.c $(SRC-DIR)/pic.c $(SRC-DIR)/idt.c $(SRC-DIR)/vga.c $(SRC-DIR)/gdt.c \
-	$(SRC-DIR)/pmm.c $(SRC-DIR)/vmm.c $(SRC-DIR)/panic.c $(SRC-DIR)/interrupt.c $(SRC-DIR)/hmm.c $(SRC-DIR)/sched.c $(SRC-DIR)/rbtree.c $(SRC-DIR)/pit.c \
-	$(SRC-DIR)/pid.c $(SRC-DIR)/exec.c $(SRC-DIR)/syscall.c $(SRC-DIR)/proc.c $(SRC-DIR)/daemon.c $(SRC-DIR)/signal.c $(SRC-DIR)/pci.c $(SRC-DIR)/ata.c
-ASM = $(ASM-DIR)/boot.asm $(ASM-DIR)/panic.asm $(ASM-DIR)/interrupt.asm $(ASM-DIR)/syscall.asm $(ASM-DIR)/sched.asm
-OBJ = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.o) $(ASM:$(ASM-DIR)/%.asm=$(OBJ-DIR)/_%.o)
+C_SOURCES := $(shell find $(SRC-DIR) -type f -name "*.c" ! -name "ata.c" ! -name "pci.c")
+ASM_SOURCES := $(shell find $(SRC-DIR) -type f -name "*.asm")
+
+C_OBJ := $(C_SOURCES:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.o)
+
+ASM_OBJ := $(ASM_SOURCES:$(SRC-DIR)/%.asm=$(OBJ-DIR)/_%.o)
+
+OBJ := $(C_OBJ) $(ASM_OBJ)
+
+DEP := $(OBJ:.o=.d)
+
+-include $(DEP)
 
 GEN-DIR = gen
 OFFSET-HEADER = $(HEADER-DIR)/offsets.inc
 GEN-BINARY = $(GEN-DIR)/gen_offsets
 GEN-SRC = $(GEN-DIR)/gen_offsets.c
-GEN-OBJ = $(GEN-SRC:$(GEN-DIR)/%.c=$(GEN-DIR)/%.o)
+GEN-OBJ = $(GEN-DIR)/gen_offsets.o
 
-DEP = $(SRC:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.d) $(GEN-SRC:$(GEN-DIR)/%.c=$(GEN-DIR)/%.d) 
-ASM-DEP = $(ASM:$(ASM-DIR)/%.asm=$(OBJ-DIR)/_%.d)
--include $(DEP)
--include $(ASM-DEP)
-
-$(OBJ-DIR):
-	mkdir -p $(OBJ-DIR)
+$(GEN-DIR)/%.o: $(GEN-DIR)/%.c
+	$(CC-NATIVE) -MMD -MP -I$(HEADER-DIR) -c $< -o $@
 
 $(OFFSET-HEADER): $(GEN-OBJ)
 	$(CC-NATIVE) -o $(GEN-BINARY) $^
 	$(GEN-BINARY) > $@
 	rm -f $(GEN-BINARY)
 
-$(GEN-DIR)/%.o: $(GEN-DIR)/%.c
-	$(CC-NATIVE) -MMD -MP -I$(HEADER-DIR) -c $< -o $@
-
-$(OBJ-DIR)/_%.d: $(ASM-DIR)/%.asm
-	nasm -M -I$(HEADER-DIR) -MP -MT $(OBJ-DIR)/_$*.o $< > $@
-
-$(OBJ-DIR)/_%.o: $(ASM-DIR)/%.asm
-	$(AS) $(SFLAGS) $< -o $@ 
+$(OBJ-DIR):
+	mkdir -p $(OBJ-DIR)
 
 $(OBJ-DIR)/%.o: $(SRC-DIR)/%.c
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-all: $(OBJ-DIR) $(OFFSET-HEADER) $(ASM-DEP) $(NAME)
+$(OBJ-DIR)/_%.o: $(SRC-DIR)/%.asm
+	@mkdir -p $(dir $@)
+	$(AS) $(SFLAGS) $< -o $@
+
+all: $(OBJ-DIR) $(OFFSET-HEADER) $(NAME)
 
 $(NAME): $(OBJ) $(LINKER)
 	$(CC) -T $(LINKER) -o $@ $(LFLAGS) $(OBJ) -lgcc
 
 clean:
-	rm -f $(OBJ-DIR)/*.o $(OBJ-DIR)/*.d
+	rm -rf $(OBJ-DIR)
 	rm -f $(GEN-DIR)/*.o $(GEN-DIR)/*.d
 
 fclean: clean

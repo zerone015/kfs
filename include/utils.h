@@ -7,9 +7,11 @@
 #include "paging.h"
 
 #define check_flag(flags, bit)          ((flags) & (1 << (bit)))
+#define ceil_div(dividend, divisor) 	(((dividend) + ((divisor) - 1)) / (divisor))
+#define offset_in(val, size)  			((val) & ((size) - 1))
 #define align_up(val, size)       		(((val) + ((size) - 1)) & ~((size) - 1))
-#define align_down(val, size)       	((val) & ~((size) - 1))
-#define is_aligned(val, size)			(!((val) & ((size) - 1)))
+#define align_down(val, size)       	(((size_t)(val)) & ~((size) - 1))
+#define is_aligned(val, size)			(offset_in(val, size) == 0)
 #define container_of(ptr, type, member) ({				\
 	    uint8_t *__mptr = (uint8_t *)(ptr);				\
 	    ((type *)(__mptr - offsetof(type, member))); })

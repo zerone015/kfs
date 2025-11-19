@@ -6,15 +6,15 @@
 #include "gdt.h"
 #include "pmm.h"
 #include "vmm.h"
-#include "hmm.h"
+#include "kmalloc.h"
 #include "panic.h"
 #include "pit.h"
 #include "sched.h"
-#include "daemon.h"
+#include "init.h"
 #include "proc.h"
 #include "exec.h"
 
-static void init_arch(void)
+static void arch_init(void)
 {
 	vga_init();
 	tty_init();
@@ -23,7 +23,7 @@ static void init_arch(void)
 	pic_init();
 }
 
-static void check_bootloader(multiboot_info_t *mbd, uint32_t magic)
+static void bootloader_check(multiboot_info_t *mbd, uint32_t magic)
 {
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC)
         do_panic("Invalid magic number");
@@ -31,25 +31,32 @@ static void check_bootloader(multiboot_info_t *mbd, uint32_t magic)
         do_panic("Invalid memory map given by GRUB bootloader");
 }
 
-static void init_memory(multiboot_info_t *mbd)
+static void memory_init(multiboot_info_t *mbd)
 {
-    pmm_init(mbd);              
-    hmm_init(vmm_init());             
-    page_ref_init();
+    uintptr_t heap_base;
+
+    heap_base = pmm_init(mbd);
+    vmm_init();
+    hmm_init(heap_base);
 }
 
-static void init_scheduler(void)
+static void scheduler_init(void)
 {
     pit_init();
     tss_init();
+}
+
+static void process_init(void)
+{
     proc_init();
     init_process(); 
 }
 
 void kmain(multiboot_info_t* mbd, uint32_t magic)
 {
-	init_arch();
-	check_bootloader(mbd, magic);
-	init_memory(mbd);
-	init_scheduler();
+	arch_init();
+	bootloader_check(mbd, magic);
+	memory_init(mbd);
+	scheduler_init();
+    process_init();
 }

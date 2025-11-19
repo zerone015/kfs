@@ -44,8 +44,8 @@ struct task_struct {
     struct list_head procl;
     struct hlist_node proct;
     struct hlist_node pgroup;
-    struct user_vblock_tree vblocks;
-    struct mapping_file_tree mapping_files;
+    struct u_vblock_tree vblocks;
+    struct mapped_vblock_tree mapped_vblocks;
     uint32_t sig_pending;
     sighandler_t sig_handlers[SIG_MAX];
     int wait_id;

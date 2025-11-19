@@ -33,7 +33,7 @@ void init_process_code(void)
 {
 	int pid, wait_pid, status;
 
-	write("wait and _exit test: ");
+	write("wait and _exit stress test: ");
 	for (int i = 0; i < 10000000; i++) {
 		pid = fork();
 		if (pid < 0)

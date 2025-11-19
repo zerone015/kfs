@@ -10,40 +10,48 @@
 
 extern char _kernel_start;
 extern char _kernel_end;
-extern uint64_t ram_size;
-extern uint16_t *page_ref;
+extern struct page *pgmap;
 
 #define block_size(order)		(PAGE_SIZE << (order))
-#define bitmap_first_size(ram)  (((((ram) + PAGE_SIZE - 1) / PAGE_SIZE) + 7) / 8)
+#define block_pages(order)  	(1UL << (order))
 
-void pmm_init(multiboot_info_t* mbd);
-void page_ref_init(void);
-page_t alloc_pages(size_t size);
-void free_pages(page_t addr, size_t size);
+uintptr_t pmm_init(multiboot_info_t *mbd);
+uintptr_t alloc_pages(size_t size);
+void free_pages(size_t addr, size_t size);
 
-static inline void page_ref_inc(page_t page)
+static inline struct page *page_from_pfn(size_t pfn)
 {
-	page_ref[pfn_from_page(page)]++;
+	return pgmap + pfn;
 }
 
-static inline void page_ref_dec(page_t page)
+static inline void pgref_inc(size_t pa)
 {
-	page_ref[pfn_from_page(page)]--;
+	struct page *page;
+	size_t pfn;
+
+	pfn = pfn_from_pa(pa);
+	page = page_from_pfn(pfn);
+	page->ref++;
 }
 
-static inline void page_set_shared(page_t page)
+static inline void pgref_dec(size_t pa)
 {
-	page_ref[pfn_from_page(page)] = 2;
+	struct page *page;
+	size_t pfn;
+
+	pfn = pfn_from_pa(pa);
+	page = page_from_pfn(pfn);
+	page->ref--;
 }
 
-static inline void page_ref_clear(page_t page)
+static inline bool page_is_shared(size_t pa)
 {
-	page_ref[pfn_from_page(page)] = 0;
-}
+	struct page *page;
+	size_t pfn;
 
-static inline bool page_is_shared(page_t page)
-{
-	return page_ref[pfn_from_page(page)] >= 2 ? true : false;
+	pfn = pfn_from_pa(pa);
+	page = page_from_pfn(pfn);
+	return page->ref >= 2 ? true : false;
 }
 
 #endif

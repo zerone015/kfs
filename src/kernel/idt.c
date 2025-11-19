@@ -1,6 +1,6 @@
 #include "idt.h"
 #include "pic.h"
-#include "interrupt.h"
+#include "isr.h"
 #include "syscall.h"
 
 static struct idt_entry idt[IDT_SIZE];

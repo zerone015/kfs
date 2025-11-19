@@ -3,7 +3,7 @@
 
 #include "list.h"
 #include "vmm.h"
-#include "interrupt.h"
+#include "isr.h"
 #include "gdt.h"
 #include "pid.h"
 #include "printk.h"
@@ -13,7 +13,7 @@
 
 extern struct task_struct *current;
 
-void switch_to_task(struct task_struct *next_task);
+void switch_to(struct task_struct *next_task);
 
 static inline void ready_queue_enqueue(struct task_struct *task)
 {
@@ -31,7 +31,7 @@ static inline void schedule(void)
 
     next_task = list_next_entry(current, ready);
     next_task->time_slice_remaining = DEFAULT_TIMESLICE;
-    switch_to_task(next_task);
+    switch_to(next_task);
 };
 
 static inline void yield(void)

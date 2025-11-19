@@ -1,21 +1,21 @@
 #include "exec.h"
 #include "sched.h"
 #include "pmm.h"
-#include "hmm.h"
+#include "kmalloc.h"
 #include "gdt.h"
 #include "utils.h"
 #include "panic.h"
 #include "pid.h"
-#include "daemon.h"
+#include "init.h"
 #include "signal.h"
 #include "tmp_syscall.h"
 
-static void pgdir_init(void)
+static void pgtab_init(void)
 {
     int code_pdi, stack_pdi;
     uint32_t *pgdir, *pgtab;
 
-    pgdir = current_pgdir();
+    pgdir = pgdir_base();
     
     code_pdi = pgdir_index(USER_CODE_BASE);
     stack_pdi = pgdir_index(USER_STACK_BASE);
@@ -26,40 +26,40 @@ static void pgdir_init(void)
     memset32(pgtab_from_pdi(code_pdi), 0, PAGE_SIZE / 4);
     memset32(pgtab_from_pdi(stack_pdi), 0, PAGE_SIZE / 4);
 
-    pgtab = pte_from_addr(USER_CODE_BASE);
+    pgtab = pte_from_va(USER_CODE_BASE);
     *pgtab = alloc_pages(PAGE_SIZE) | PG_US | PG_RDWR | PG_PRESENT;
     for (size_t i = 1; i < (USER_CODE_SIZE / PAGE_SIZE); i++)
         pgtab[i] = PG_RESERVED | PG_US | PG_RDWR;
     
-    pgtab = pte_from_addr(USER_STACK_BASE);
+    pgtab = pte_from_va(USER_STACK_BASE);
     for (size_t i = 0; i < (USER_STACK_SIZE / PAGE_SIZE); i++)
         pgtab[i] = PG_RESERVED | PG_US | PG_RDWR;
 }
 
-static void mapping_file_tree_init(void)
+static void mapped_vblock_tree_init(void)
 {
     struct rb_root *root;
-    struct mapping_file *new;
+    struct mapped_vblock *new;
 
-    root = &current->mapping_files.by_base;
+    root = &current->mapped_vblocks.by_base;
 
-    new = (struct mapping_file *)kmalloc(sizeof(struct mapping_file));
+    new = (struct mapped_vblock *)kmalloc(sizeof(struct mapped_vblock));
     new->base = USER_CODE_BASE;
     new->size = USER_CODE_SIZE;
-    mapping_file_add(new, root);
+    mapped_vblock_add(new, root);
 
-    new = (struct mapping_file *)kmalloc(sizeof(struct mapping_file));
+    new = (struct mapped_vblock *)kmalloc(sizeof(struct mapped_vblock));
     new->base = USER_STACK_BASE;
     new->size = USER_STACK_SIZE;
-    mapping_file_add(new, root);
+    mapped_vblock_add(new, root);
 }
 
 static void vblock_tree_init(void)
 {
     struct rb_root *root;
-    struct user_vblock *new;
+    struct u_vblock *new;
 
-    new = (struct user_vblock *)kmalloc(sizeof(struct user_vblock));
+    new = (struct u_vblock *)kmalloc(sizeof(struct u_vblock));
     new->base = USER_CODE_BASE + USER_CODE_SIZE;
     new->size = USER_STACK_BASE - new->base - USER_STACK_GUARD_SIZE;
 
@@ -70,14 +70,37 @@ static void vblock_tree_init(void)
     vblock_bysize_add(new, root);
 }
 
-static void user_vspace_init(void)
+static void cleanup_for_exec(void)
 {
-    mapping_file_tree_init();
-    vblock_tree_init();
-    pgdir_init();
+    user_vspace_cleanup(&current->vblocks, &current->mapped_vblocks, 
+        CL_MAPPING_FREE | CL_TLB_INVL | CL_RECYCLE);
+    current->sig_pending = 0;
+    signal_init(current->sig_handlers);
 }
 
-static void jmp_to_entry_point(void) 
+static void readonly_segment_protect(void)
+{
+    uint32_t *pte;
+
+    pte = pte_from_va(USER_CODE_BASE);
+    for (size_t i = 0; i < (USER_CODE_SIZE / PAGE_SIZE); i++) {
+        pte[i] &= ~PG_RDWR;
+        tlb_invl(USER_CODE_BASE + i*PAGE_SIZE); 
+    }
+}
+
+static void vas_init(void (*func)())
+{
+    mapped_vblock_tree_init();
+    vblock_tree_init();
+    pgtab_init();
+
+    memcpy((void *)USER_CODE_BASE, func, USER_CODE_SIZE);
+
+    readonly_segment_protect();
+}
+
+static void enter_user_mode(void) 
 {
     __asm__ (
         "mov %[user_ds], %%ax\n\t"
@@ -102,30 +125,9 @@ static void jmp_to_entry_point(void)
     );
 }
 
-static void process_cleanup(void)
-{
-    user_vspace_cleanup(&current->vblocks, &current->mapping_files, 
-        CL_MAPPING_FREE | CL_TLB_INVL | CL_RECYCLE);
-    current->sig_pending = 0;
-    signal_init(current->sig_handlers);
-}
-
-static void rdonly_pages_setup(void)
-{
-    uint32_t *pte;
-
-    pte = pte_from_addr(USER_CODE_BASE);
-    for (size_t i = 0; i < (USER_CODE_SIZE / PAGE_SIZE); i++) {
-        pte[i] &= ~PG_RDWR;
-        tlb_invl(USER_CODE_BASE + i*PAGE_SIZE); 
-    }
-}
-
 void exec_fn(void (*func)())
 {
-    process_cleanup();
-    user_vspace_init();
-    memcpy((void *)USER_CODE_BASE, func, USER_CODE_SIZE);
-    rdonly_pages_setup();
-    jmp_to_entry_point();
+    cleanup_for_exec();
+    vas_init(func);
+    enter_user_mode();
 }
