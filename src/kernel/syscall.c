@@ -121,43 +121,60 @@ static bool access_ok(void *addr)
     return true;
 }
 
+static int child_cleanup(struct task_struct *child) 
+{
+    int pid;
+    uint32_t stack_base;
+
+    free_pid(child->pid);
+    free_pages(child->cr3, PAGE_SIZE);
+
+    stack_base = child->esp0 - KERNEL_STACK_SIZE;
+    kfree((void *)stack_base);
+
+    remove_child_from_parent(child);
+    process_unregister(child);
+
+    pid = child->pid;
+    kfree(child);
+
+    return pid;
+}
+
 static int child_reap(struct task_struct *child, int *status)
 {
-    int ret;
-    
     if (status) {
         if (!access_ok(status))
             return -EFAULT;
         *status = child->status;
     }
-    if (current_signal(current, SIGCHLD)) {
-        if (!defunct_child_from(current))
-            signal_pending_clear(current, SIGCHLD);
-    }
-    free_pid(child->pid);
-    free_pages(child->cr3, PAGE_SIZE);
-    kfree((void *)(child->esp0 - KERNEL_STACK_SIZE));
-    remove_child_from_parent(child);
-    process_unregister(child);
-    ret = child->pid;
-    kfree(child);
-    return ret;
+    
+    if (!defunct_child_from(current))
+        signal_pending_clear(current, SIGCHLD);
+    
+    return child_cleanup(child);
 }
 
-static int __wait(uint8_t state, int *status, int options)
+static int wait_sleep(uint8_t state, int *status, int options)
 {
     struct task_struct *child;
 
     if (options == WNOHANG)
         return 0;
+    
     if (unmasked_signal_pending())
         return -EINTR;
+    
     sleep(current, state);
+
     if (signal_pending(current))
         return -EINTR;
+
     if (current->wait_id == -1)
         return -ECHILD;
+
     child = process_lookup(current->wait_id);
+    
     return child_reap(child, status);
 }
 
@@ -166,12 +183,16 @@ static int wait_for_pid(int pid, int *status, int options)
     struct task_struct *child;
 
     child = process_lookup(pid);
+
     if (!child || current != child->parent)
         return -ECHILD;
+
     if (child->state == PROCESS_ZOMBIE)
         return child_reap(child, status);
+
     current->wait_id = child->pid;
-    return __wait(PROCESS_WAIT_CHILD_PID, status, options);
+
+    return wait_sleep(PROCESS_WAIT_CHILD_PID, status, options);
 }
 
 static int wait_for_pgid(int pgid, int *status, int options)
@@ -182,10 +203,13 @@ static int wait_for_pgid(int pgid, int *status, int options)
     child = defunct_child_from_pgid(current, pgid, &found);
     if (child)
         return child_reap(child, status);
+
     if (!found)
         return -ECHILD;
+
     current->wait_id = pgid;
-    return __wait(PROCESS_WAIT_CHILD_PGID, status, options);
+
+    return wait_sleep(PROCESS_WAIT_CHILD_PGID, status, options);
 }
 
 static int wait_for_any(int *status, int options)
@@ -194,10 +218,12 @@ static int wait_for_any(int *status, int options)
 
     if (list_empty(&current->children))
         return -ECHILD;
+
     child = defunct_child_from(current);
     if (child)
         return child_reap(child, status);
-    return __wait(PROCESS_WAIT_CHILD_ANY, status, options);
+
+    return wait_sleep(PROCESS_WAIT_CHILD_ANY, status, options);
 }
 
 static void pages_set_cow(void) 
@@ -236,23 +262,30 @@ static size_t pgdir_clone(void)
 {
     uint32_t *pgdir;
     void *pgtab;
-    size_t pgdir_page, pgtab_page;
+    size_t pgdir_pa, pgtab_pa;
 
-    pgdir_page = alloc_pages(PAGE_SIZE);
-    pgdir = (uint32_t *)tmp_map(pgdir_page);
+    pgdir_pa = alloc_pages(PAGE_SIZE);
+    pgdir = (uint32_t *)tmp_map(pgdir_pa);
+
     memcpy32(pgdir, pgdir_base(), PAGE_SIZE / 4);
+
     for (size_t i = 0; i < 768; i++) {
-        if (pgdir[i]) {
-            pgtab_page = alloc_pages(PAGE_SIZE);
-            pgtab = tmp_map(pgtab_page);
-            memcpy32(pgtab, pgtab_from_pdi(i), PAGE_SIZE / 4);
-            tmp_unmap(pgtab);
-            pgdir[i] = pgtab_page | pg_entry_flags(pgdir[i]);
-        }
+        if (!pgdir[i])
+            continue;
+
+        pgtab_pa = alloc_pages(PAGE_SIZE);
+
+        pgtab = tmp_map(pgtab_pa);
+        memcpy32(pgtab, pgtab_from_pdi(i), PAGE_SIZE / 4);
+        tmp_unmap(pgtab);
+
+        pgdir[i] = pgtab_pa | pg_entry_flags(pgdir[i]);
     }
-    pgdir[1023] = pgdir_page | pg_entry_flags(pgdir[1023]);
+
+    pgdir[1023] = pgdir_pa | pg_entry_flags(pgdir[1023]);
     tmp_unmap(pgdir);
-    return pgdir_page;
+    
+    return pgdir_pa;
 }
 
 static int vblocks_clone(struct u_vblock_tree *vblocks)
@@ -402,12 +435,16 @@ static int sys_waitpid(int pid, int *status, int options)
 {
     if (options != 0 && options != WNOHANG)
         return -EINVAL;
+
     if (pid > 0)
         return wait_for_pid(pid, status, options);
+
     if (pid == 0)
         return wait_for_pgid(current->pgid, status, options);
+
     if (pid < -1)
         return pid == INT_MIN ? -ESRCH : wait_for_pgid(-pid, status, options);
+
     return wait_for_any(status, options);
 }
 
@@ -433,8 +470,11 @@ static int sys_signal(int sig, uintptr_t handler)
 
     if (!signal_is_valid(sig) || !signal_is_catchable(sig))
         return -EINVAL;
+
     old = sighandler_lookup(sig);
+
     sighandler_register(sig, (sighandler_t)handler);
+
     return (int)old;
 }
 
@@ -442,8 +482,10 @@ static int sys_kill(int pid, int sig)
 {
     if (sig != 0 && !signal_is_valid(sig))
         return -EINVAL;    
+
     if (pid > 0)
         return kill_one(pid, sig);
+
     return kill_many(pid, sig);
 }
 
