@@ -16,7 +16,7 @@ HEADER-DIR = include
 SRC-DIR = src
 OBJ-DIR = build
 
-C_SOURCES := $(shell find $(SRC-DIR) -type f -name "*.c" ! -name "ata.c" ! -name "pci.c")
+C_SOURCES := $(shell find $(SRC-DIR) -type f -name "*.c")
 ASM_SOURCES := $(shell find $(SRC-DIR) -type f -name "*.asm")
 
 C_OBJ := $(C_SOURCES:$(SRC-DIR)/%.c=$(OBJ-DIR)/%.o)
