@@ -33,11 +33,11 @@ static void bootloader_check(multiboot_info_t *mbd, uint32_t magic)
 
 static void memory_init(multiboot_info_t *mbd)
 {
-    uintptr_t heap_base;
+    uintptr_t heap_start;
 
-    heap_base = pmm_init(mbd);
+    heap_start = pmm_init(mbd);
     vmm_init();
-    hmm_init(heap_base);
+    hmm_init(heap_start);
 }
 
 static void scheduler_init(void)

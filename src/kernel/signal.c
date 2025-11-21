@@ -55,23 +55,29 @@ static void do_default_signal(int sig)
     }
 }
 
-static void prepare_signal_frame_setup(struct signal_frame *sf) 
+static void prepare_sigframe_setup(struct signal_frame *sf) 
 {
-    uint32_t *pte = pte_from_va(sf);
-    uintptr_t addr = (uintptr_t)sf;
+    uint32_t *pte;
+    uintptr_t start;
+    uintptr_t end;
+    
+    pte = pte_from_va(sf);
+    start = (uintptr_t)sf;
 
     if (is_rdwr_cow(*pte))
-        cow_handle(pte, addr);
+        cow_handle(pte, start);
 
-    uintptr_t end_addr = addr + sizeof(struct signal_frame);
-    if (align_down(addr, PAGE_SIZE) != align_down(end_addr, PAGE_SIZE)) {
+    end = start + sizeof(struct signal_frame);
+    if (align_down(start, PAGE_SIZE) != align_down(end, PAGE_SIZE)) {
         if (is_rdwr_cow(*(pte + 1)))
-            cow_handle(pte + 1, end_addr);
+            cow_handle(pte + 1, end);
     }
 }
 
-static void signal_frame_setup(struct signal_frame *sf, struct ucontext *ucontext, int sig)
+static void sigframe_setup(struct signal_frame *sf, struct ucontext *ucontext, int sig)
 {
+    prepare_sigframe_setup(sf);
+
     sf->eax = ucontext->eax;
     sf->ecx = ucontext->ecx;
     sf->edx = ucontext->edx;
@@ -82,7 +88,9 @@ static void signal_frame_setup(struct signal_frame *sf, struct ucontext *ucontex
     sf->ebp = ucontext->ebp;
     sf->eip = ucontext->eip;
     sf->eflags = ucontext->eflags;
+
     memcpy(sf->trampoline, trampoline_code, sizeof(trampoline_code));
+
     sf->arg = sig;
     sf->ret = (uint32_t)sf->trampoline;
 }
@@ -93,8 +101,7 @@ static void do_caught_signal(int sig, sighandler_t sighandler, struct ucontext *
     
     sf = (struct signal_frame *)(ucontext->esp - sizeof(struct signal_frame));
     
-    prepare_signal_frame_setup(sf);
-    signal_frame_setup(sf, ucontext, sig);
+    sigframe_setup(sf, ucontext, sig);
 
     ucontext->esp = (uint32_t)sf;
     ucontext->eip = (uint32_t)sighandler;
@@ -105,8 +112,12 @@ static void do_caught_signal(int sig, sighandler_t sighandler, struct ucontext *
 
 void do_signal(uint32_t sig_pending, struct ucontext *ucontext)
 {
-    int sig = pick_signal(sig_pending);
-    sighandler_t sighandler = sighandler_lookup(sig);
+    int sig;
+    sighandler_t sighandler;
+    
+    sig = pick_signal(sig_pending);
+    sighandler= sighandler_lookup(sig);
+
     if (sighandler == SIG_DFL)
         do_default_signal(sig);
     else

@@ -49,8 +49,10 @@ void idt_init(void)
 	idt_set_gate(PIT_INT, (uintptr_t)pit_handler, INT_GATE_PL0);
 	idt_set_gate(KEYBOARD_INT, (uintptr_t)keyboard_handler, INT_GATE_PL0);
 	idt_set_gate(SYSCALL_INT, (uintptr_t)syscall_handler, INT_GATE_PL3);
+
 	idt_ptr.limit = (sizeof(struct idt_entry) * IDT_SIZE) - 1;
 	idt_ptr.base = (uintptr_t)&idt;
+
 	idt_load(&idt_ptr);
 }
 

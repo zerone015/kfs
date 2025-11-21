@@ -13,7 +13,7 @@ void proc_init(void)
     init_list_head(&process_list);
 }
 
-static void zombie_set(int status)
+static void defunct_mark(int status)
 {
     current->status = status;
     current->state = PROCESS_ZOMBIE;
@@ -70,8 +70,10 @@ static void resources_cleanup(void)
 {
     struct pgroup *pgrp;
 
-    user_vspace_cleanup(&current->vblocks, &current->mapped_vblocks, CL_MAPPING_FREE);
+    user_vas_cleanup(&current->vblocks, &current->mapped_vblocks, CL_MAPPING_FREE);
+
     remove_from_pgroup(current);
+    
     pgrp = pgroup_lookup(current->pgid);
     if (pgroup_empty(pgrp))
         pgroup_destroy(pgrp);
@@ -81,7 +83,7 @@ void do_exit(int status)
 {
     resources_cleanup();
     reparent_children();
-    zombie_set(status);
+    defunct_mark(status);
     exit_notify(current->parent);
     yield();
     __builtin_unreachable();

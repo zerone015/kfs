@@ -373,7 +373,7 @@ static uintptr_t __pmm_init(struct mmap_buffer *mmap)
     size_t pgmap_size;
     size_t aligned_size;
     size_t order;
-    uintptr_t heap_base;
+    uintptr_t heap_start;
 
     pgcount = pgcount_compute(mmap);
     pgmap_size = sizeof(struct page) * pgcount;
@@ -398,8 +398,8 @@ static uintptr_t __pmm_init(struct mmap_buffer *mmap)
     
     pages_register(mmap);
 
-    heap_base = (size_t)pgmap + pgmap_size;
-    return heap_base;
+    heap_start = (size_t)pgmap + pgmap_size;
+    return heap_start;
 }
 
 static size_t pfn_from_page(struct page *pg)

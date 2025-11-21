@@ -18,9 +18,11 @@ static bool check_kill_permission(struct task_struct *target)
 {
     if (current->uid == 0 || current->euid == 0)
         return true;
+
     if (current->uid == target->uid || current->uid == target->suid \
         || current->euid == target->uid || current->euid == target->suid)
         return true;
+
     return false;
 }
 
@@ -60,13 +62,17 @@ static int kill_one(int pid, int sig)
 
     if (pid >= PID_MAX)
         return -ESRCH;
+
     target = process_lookup(pid);
     if (!target)
         return -ESRCH;
+
     if (!check_kill_permission(target))
         return -EPERM;
+
     if (sig != 0)
         signal_send(target, sig);
+
     return 0;
 }
 
@@ -76,13 +82,14 @@ static int kill_many(int pid, int sig)
 
     if (pid == -1)
         return kill_to_all(sig);
+
     if (pid < -1) {
         if (-pid >= PGID_MAX || !(pgrp = pgroup_lookup(-pid)))
             return -ESRCH;
-    }
-    else {
+    } else {
         pgrp = pgroup_lookup(current->pgid);
     }
+    
     return kill_to_group(pgrp, sig);
 }
 

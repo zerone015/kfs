@@ -72,8 +72,8 @@ static void vblock_tree_init(void)
 
 static void cleanup_for_exec(void)
 {
-    user_vspace_cleanup(&current->vblocks, &current->mapped_vblocks, 
-        CL_MAPPING_FREE | CL_TLB_INVL | CL_RECYCLE);
+    user_vas_cleanup(&current->vblocks, &current->mapped_vblocks, 
+                     CL_MAPPING_FREE | CL_TLB_INVL | CL_RECYCLE);
     current->sig_pending = 0;
     signal_init(current->sig_handlers);
 }

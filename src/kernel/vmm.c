@@ -33,10 +33,13 @@ static void vb_init(void)
     pde = pgdir_kernel_base();
     while (*pde)
         pde++;
+
     objs[0].base = va_from_pde(pde);
+
     while (!*pde)
         pde++;
     objs[0].size = va_from_pde(pde) - objs[0].base;
+
     init_list_head(&free_list);
     list_add(&objs[0].list_head, &free_list);
 }
@@ -91,12 +94,15 @@ static void vb_add_and_merge(uintptr_t addr, size_t size)
         if (addr < cur->base)
             break;
     }
+
     new = obj_pool_pop();
     new->base = addr;
     new->size = size;
+
     list_add_tail(&new->list_head, &cur->list_head);
 
     cur = list_prev_entry(new, list_head);
+
     if (!list_entry_is_head(cur, &free_list, list_head) 
         && cur->base + cur->size == new->base) {
         new->base = cur->base;
@@ -104,7 +110,9 @@ static void vb_add_and_merge(uintptr_t addr, size_t size)
         list_del(&cur->list_head);
         obj_pool_push(cur);
     }
+
     cur = list_next_entry(new, list_head);
+
     if (!list_entry_is_head(cur, &free_list, list_head) 
         && new->base + new->size == cur->base) {
         new->size += cur->size;
@@ -163,10 +171,12 @@ uintptr_t early_map(size_t pa_base, size_t count, int flags)
     pde = pgdir_kernel_base();
     while (*pde)
         pde++;
+
     for (size_t i = 0; i < count; i++) {
         pde[i] = pa_base | flags;
         pa_base += PAGE_LARGE_SIZE;
     }
+
     return va_from_pde(pde);
 }
 

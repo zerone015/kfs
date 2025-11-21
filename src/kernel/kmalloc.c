@@ -66,6 +66,7 @@ static void heap_init(struct malloc_chunk *free_chunk, size_t size)
 static struct malloc_chunk *morecore(size_t size)
 {
     struct malloc_chunk *free_chunk;
+    int flags;
 
     if (is_aligned(size, PAGE_LARGE_SIZE))
         size += PAGE_LARGE_SIZE;
@@ -76,7 +77,8 @@ static struct malloc_chunk *morecore(size_t size)
     if (!free_chunk)
         return NULL;
         
-    heap_init(free_chunk, size | IS_HEAD | PREV_INUSE);
+    flags = IS_HEAD | PREV_INUSE;
+    heap_init(free_chunk, size | flags);
     
     return free_chunk;
 }
@@ -101,22 +103,23 @@ static struct malloc_chunk *chunk_from(size_t size)
     return chunk;
 }
 
-void hmm_init(uintptr_t heap_base)
+void hmm_init(uintptr_t start)
 {
     struct malloc_chunk *free_chunk;
     size_t size;
-    uintptr_t page_end;
+    uintptr_t end;
     size_t remaining;
     size_t dummy_area_size;
+    int flags;
 
     freelist_init();
 
-     /* heap_base: leftover space unused by the physical memory manager's metadata */
-    heap_base = align_up(heap_base, 4);
-    page_end = align_up(heap_base, PAGE_LARGE_SIZE);
+     /* start: leftover space unused by the physical memory manager's metadata */
+    start = align_up(start, 4);
+    end = align_up(start, PAGE_LARGE_SIZE);
 
     dummy_area_size = MIN_SIZE * 2;
-    remaining = page_end - heap_base;
+    remaining = end - start;
 
     /* need: 2 dummy chunks + minimum free chunk */
     if (remaining < MIN_SIZE + dummy_area_size) {
@@ -126,16 +129,23 @@ void hmm_init(uintptr_t heap_base)
             do_panic("failed to allocate initial heap region");
     } else {
         size = remaining;
-        free_chunk = (struct malloc_chunk *)heap_base;
+        free_chunk = (struct malloc_chunk *)start;
     }
 
-    heap_init(free_chunk, size | PREV_INUSE);
+    flags = PREV_INUSE;
+    heap_init(free_chunk, size | flags);
+
     list_add(&free_chunk->list_head, free_list + freelist_idx(free_chunk->size));
 }
 
 size_t ksize(void *mem)
 {
-    return chunk_size(mem2chunk(mem)) - SIZE_SZ;
+    struct malloc_chunk *chunk;
+    size_t payload_size;
+
+    chunk = mem2chunk(mem);
+    payload_size = chunk_size(chunk) - SIZE_SZ;
+    return payload_size;
 }
 
 void *kmalloc(size_t size)
@@ -144,16 +154,19 @@ void *kmalloc(size_t size)
     size_t remainder_size;
 
     size = request_size(size);
+
     chunk = chunk_from(size);
     if (!chunk) {
         if (!(chunk = morecore(size)))
             return NULL;
     }
+
     remainder_size = chunk->size - size;
     if (remainder_size >= MIN_SIZE)
         chunk_split(chunk, remainder_size);
     else
         set_inuse(chunk);
+
     return chunk2mem(chunk);
 }
 
@@ -184,5 +197,6 @@ void kfree(void *mem)
 
     clear_inuse(chunk);
     next_chunk(chunk)->prev_size = chunk_size(chunk);
+    
     list_add(&chunk->list_head, free_list + freelist_idx(chunk->size));
 }

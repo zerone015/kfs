@@ -55,10 +55,14 @@ void tss_init(void)
 	tss_entry = kmalloc(sizeof(struct tss_entry));
 	if (!tss_entry)
 		do_panic("tss initialize failed");
+
 	tss_entry->ss0 = GDT_SELECTOR_DATA_PL0;
 	tss_entry->esp0 = (uint32_t)&stack_top;
 	tss_entry->iomap = sizeof(struct tss_entry);
+
 	gdt_set_entry(5, sizeof(struct tss_entry), (uint32_t)tss_entry, GDT_TSS_ACCESS, GDT_TSS_FLAGS);
+
 	__asm__ ("ltr %%ax" :: "a"(GDT_SELECTOR_TSS));
+	
 	tss = tss_entry;
 }

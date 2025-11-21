@@ -15,17 +15,25 @@ void tty_init(void)
 {
 	for (size_t i = 0; i < TTY_MAX; i++) {
 		tty[i].color = vga_entry_color(VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
+
 		vga_buf = tty[i].buf;
 		cur_tty = i;
+
 		printk(TTY_HELLO);
+
 		tty[i].color = vga_entry_color(VGA_COLOR_RED, VGA_COLOR_BLACK);
+
 		printk("* Connected to tty%c *\n\n", i + '1');
+
 		tty[i].color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+
 		printk(TTY_PROMPT);
+
 		for (size_t j = VGA_WIDTH * tty[i].row + tty[i].column; j < VGA_SIZE; j++)
 			vga_buf[j] = vga_entry(' ', tty[i].color);
 	}
 	cur_tty = 0;
+
 	vga_buf = (uint16_t *)VGA_MEMORY;
 	for (size_t i = 0; i < VGA_SIZE; i++)
 		vga_buf[i] = tty[cur_tty].buf[i];
@@ -44,14 +52,18 @@ void tty_change(size_t next_tty)
 	cur_tty_size = VGA_WIDTH * tty[cur_tty].row + tty[cur_tty].column;
 	for (size_t i = 0; i < cur_tty_size; i++)
 		tty[cur_tty].buf[i] = vga_buf[i];
+
 	next_tty_size = VGA_WIDTH * tty[next_tty].row + tty[next_tty].column;
 	for (size_t i = 0; i < next_tty_size; i++)
 		vga_buf[i] = tty[next_tty].buf[i];
+
 	while (next_tty_size < cur_tty_size) {	
 		vga_buf[next_tty_size] = vga_entry(' ', tty[next_tty].color);
 		next_tty_size++;
 	}
+
 	cur_tty = next_tty;
+
 	vga_update_cursor(tty[next_tty].column, tty[next_tty].row);
 }
 
@@ -79,9 +91,12 @@ void tty_scroll(void)
 	non_input_length = VGA_SIZE - tty[cur_tty].input_length;
 	if (non_input_length < VGA_WIDTH)
 		tty[cur_tty].input_length -= VGA_WIDTH - non_input_length;
+
 	for (size_t i = 0; i < VGA_SIZE - VGA_WIDTH; i++)
 		vga_buf[i] = vga_buf[i + VGA_WIDTH];
+
 	tty_delete_last_line();
+	
 	tty[cur_tty].row--;
 }
 
@@ -103,17 +118,20 @@ void tty_delete_input(void)
 
 void tty_enter_input(void)
 {
+	char buf[VGA_SIZE];
 	uint16_t *input_head;
 	size_t input_head_idx;
-	char buf[VGA_SIZE];
 	size_t i;
 
 	input_head_idx = VGA_WIDTH * tty[cur_tty].row + tty[cur_tty].column - tty[cur_tty].input_length;
 	input_head = &vga_buf[input_head_idx];
+
 	for (i = 0; i < tty[cur_tty].input_length; i++)
 		buf[i] = input_head[i] & 0xFF;
+
 	tty_putchar('\n');
 	tty_write(buf, i);
+	
 	if (i > 0) {
 		tty_putchar('\n');
 		tty[cur_tty].input_length = 0;
@@ -127,10 +145,12 @@ void tty_putchar(char c)
 		if (++(tty[cur_tty].row) == VGA_HEIGHT)
 			tty_scroll();
 	}
+
 	if (c != '\n') {
 		tty_putentryat(c, tty[cur_tty].color, tty[cur_tty].column, tty[cur_tty].row);
 		tty[cur_tty].column++;
 	}
+
 	vga_update_cursor(tty[cur_tty].column, tty[cur_tty].row);
 }
 
@@ -144,5 +164,6 @@ void tty_clear(void)
 {
 	for (size_t i = 0; i < VGA_WIDTH * tty[cur_tty].row + tty[cur_tty].column; i++)
 		vga_buf[i] = vga_entry(' ', tty[cur_tty].color);
+
 	tty[cur_tty].input_length = tty[cur_tty].row = tty[cur_tty].column = 0;
 }

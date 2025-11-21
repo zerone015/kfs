@@ -167,9 +167,9 @@ void pgdir_cleanup(bool do_recycle)
  * site therefore receives a specialized, zero-overhead cleanup sequence.
  */
 static inline __attribute__((always_inline)) 
-void user_vspace_cleanup(struct u_vblock_tree *vblocks, 
-                         struct mapped_vblock_tree *mapped_vblocks, 
-                         int flags)
+void user_vas_cleanup(struct u_vblock_tree *vblocks, 
+                      struct mapped_vblock_tree *mapped_vblocks, 
+                      int flags)
 {
     vblocks_cleanup(vblocks);
     mapped_vblocks_cleanup(mapped_vblocks,
