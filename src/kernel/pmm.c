@@ -431,13 +431,6 @@ static void page_set_free(struct page *page)
 	page->flags |= PAGE_FREE;
 }
 
-/*
- * Buddy allocator invariant:
- * - free_list[order] contains only blocks whose PFN is aligned to
- *   2^order pages (i.e., each block is the left/base of its pair).
- *
- * Free/alloc operations maintain this invariant.
- */
 uintptr_t alloc_pages(size_t size)
 {
     struct page *page = NULL;   /* GCC false-positive: maybe-uninitialized */
@@ -467,14 +460,6 @@ uintptr_t alloc_pages(size_t size)
 
     pfn = pfn_from_page(page);
 
-    /*
-     * Split a larger block into two smaller buddy blocks.
-     *
-     * Since the block taken from free_list[cur_order] is always base-aligned
-     * (maintained by free_pages()), 'pfn' already points to the left child.
-     *
-     * So right child = pfn + (2^cur_order), and left child (pfn) is split again.
-     */
     while (cur_order > order) {
         cur_order--;
 
@@ -506,16 +491,6 @@ void free_pages(size_t addr, size_t size)
 
     pfn = pfn_from_pa(addr);
 
-    /*
-     * Merge with buddy blocks while possible.
-     *
-     * buddy_pfn = pfn XOR (2^order) gives the other half of the pair.
-     * If buddy is free, remove it and merge into a higher-order block.
-     *
-     * After merging, the new block's base PFN is:
-     * pfn &= ~((2 * bpages) - 1)
-     * which ensures the merged block is base-aligned.
-     */
     while (order < MAX_ORDER - 1) {
         bpages = block_pages(order);
 

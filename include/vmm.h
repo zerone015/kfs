@@ -138,33 +138,28 @@ void pgdir_cleanup(bool do_recycle)
 /*
  * Cleanup routines for a user virtual address space.
  *
- * The cleanup pipeline is shared by exit(), exec() rollback, and fork()
- * rollback paths.  Each stage (vblock metadata, mapped regions, and PDE/PT)
- * can be selectively enabled via flags so that callers only perform the
- * work that is actually needed.
+ * Shared by exit(), exec() rollback, and fork() rollback paths.
+ * Three flags control which work is performed at each call site.
+ * Flags are passed as compile-time constants, allowing the compiler
+ * to statically eliminate unused branches.
+ * __attribute__((always_inline)) is applied to guarantee inlining.
  *
  * Flags:
  *   CL_MAPPING_FREE:
  *      - Free physical pages belonging to mapped_vblocks.
- *      - Disabled during fork() rollback, because child mappings have not
- *        been COW-processed nor physically installed yet — only metadata
- *        nodes exist and freeing pages would be incorrect.
+ *      - Disabled during fork() rollback: physical pages have not
+ *        been allocated yet, so only metadata nodes need to be cleaned up.
  *
  *   CL_TLB_INVL:
  *      - Invalidate TLB for unmapped pages.
- *      - Disabled during fork() rollback (we are in the parent context, so
- *        invalidating parent TLB entries for unmapped child ranges is wrong).
- *      - Disabled during exit(), because the process is about to lose its
- *        address space entirely (CR3 switch makes INVLPG unnecessary).
+ *      - Disabled during fork() rollback: the address space has never
+ *        been activated.
+ *      - Disabled during exit(): the process will never execute again.
  *
  *   CL_RECYCLE:
- *      - Clear user PDE entries so that the pgdir structure can be reused
- *        for a fresh virtual address space.
- *      - Disabled during exit(), since the pgdir is not reused.
- *
- * All functions are static inline and are called with compile-time constant
- * flags, allowing the compiler to fully remove unused branches.  Each call
- * site therefore receives a specialized, zero-overhead cleanup sequence.
+ *      - Clear user PDE entries so the page directory can be reused.
+ *      - Required during exec() to reinitialize the user address space.
+ *      - Disabled during exit(): the page directory is not reused.
  */
 static inline __attribute__((always_inline)) 
 void user_vas_cleanup(struct u_vblock_tree *vblocks, 

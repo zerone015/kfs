@@ -38,18 +38,13 @@ static void chunk_split(struct malloc_chunk *chunk, size_t remainder_size)
 }
 
 /*
-* Heap layout:  [ free_chunk ] → [ dummy1 ] → [ dummy2 ]
-*
-* Reason:
-*   During coalescing, the allocator checks whether the “next chunk”
-*   is in use by examining the PREV_INUSE bit stored in the *next
-*   chunk’s next chunk*. (i.e., it may read up to two chunks ahead.)
-*
-*   Therefore the last real chunk in this heap region must be
-*   followed by two valid dummy chunks. Without these dummies,
-*   next_chunk() or the second-level next_chunk() would step outside
-*   the region and cause an unintended page fault → kernel panic.
-*/
+ * Heap layout:  [ free_chunk ] → [ dummy1 ] → [ dummy2 ]
+ *
+ * During coalescing, the allocator reads the PREV_INUSE bit of the
+ * next chunk's next chunk to determine whether the next chunk is free.
+ * Without two dummy chunks at the end of the region, this access would
+ * cross the page boundary and cause an unintended page fault.
+ */
 static void heap_init(struct malloc_chunk *free_chunk, size_t size)
 {
     struct malloc_chunk *dummy_chunk1, *dummy_chunk2;
