@@ -707,7 +707,6 @@ blocking syscall   → yield()    → schedule() → switch_to()
 
 구현된 기능의 안정성을 확인하기 위해 별도의 테스트 코드를 작성 및 검증했습니다.  
 관련 테스트 코드는 [`test/`](https://github.com/zerone015/kfs/tree/master/test) 디렉토리에서 확인할 수 있습니다.  
-시스템 콜, 시그널, 스케줄링 관련 테스트는 유저 모드 환경에서 실행되도록 구성했습니다.
 
 #### [물리 메모리](https://github.com/zerone015/kfs/blob/master/test/pmm_test.c#L141) (`test_pmm`)
 - 오더별 단일 크기 반복 할당/해제 후 free 페이지 수가 초기 상태와 일치하는지 검증
