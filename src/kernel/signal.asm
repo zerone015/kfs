@@ -6,6 +6,8 @@ extern do_signal
 
 ; Common return path for exceptions/IRQs
 isr_signal_return:
+    test dword [esp + 16], 3
+    jz .done
     call unmasked_signal_pending
     cmp eax, 0
     je .done
