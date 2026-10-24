@@ -140,6 +140,9 @@ void tty_enter_input(void)
 
 void tty_putchar(char c) 
 {
+#ifdef KFS_TEST
+	outb(0xE9, c);
+#endif
 	if (c == '\n' || tty[cur_tty].column == VGA_WIDTH) {
 		tty[cur_tty].column = 0;
 		if (++(tty[cur_tty].row) == VGA_HEIGHT)

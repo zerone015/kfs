@@ -13,6 +13,9 @@
 #include "init.h"
 #include "proc.h"
 #include "exec.h"
+#ifdef KFS_TEST
+#include "test.h"
+#endif
 
 static void arch_init(void)
 {
@@ -57,6 +60,14 @@ void kmain(multiboot_info_t* mbd, uint32_t magic)
 	arch_init();
 	bootloader_check(mbd, magic);
 	memory_init(mbd);
+#if defined(KFS_TEST_MALLOC)
+	test_malloc();
+	test_done();
+#elif defined(KFS_TEST_PANIC)
+	panic_test1();
+#elif defined(KFS_TEST_PANIC_EXCEPTION)
+	panic_test2();
+#endif
 	scheduler_init();
     process_init();
 }

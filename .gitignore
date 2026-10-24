@@ -2,6 +2,8 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=c
 
 .vscode/
+build/
+toolchain/
 
 ### C ###
 # Prerequisites

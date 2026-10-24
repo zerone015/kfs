@@ -5,6 +5,9 @@
 #include "vmm.h"
 #include "kmalloc.h"
 #include <stdbool.h>
+#ifdef KFS_TEST_PMM
+#include "test.h"
+#endif
 
 static struct buddy_allocator bd_alloc;
 struct page *pgmap;
@@ -523,5 +526,12 @@ uintptr_t pmm_init(multiboot_info_t *mbd)
     mmap_trim_highmem(&mmap);
     mmap_reserve_kernel(&mmap);
     mmap_align(&mmap);
-    return __pmm_init(&mmap); 
+    
+#ifdef KFS_TEST_PMM
+    __pmm_init(&mmap);
+    test_pmm(&bd_alloc, &mmap);
+    test_done();
+#else
+    return __pmm_init(&mmap);
+#endif
 }

@@ -3,6 +3,9 @@
 #include "paging.h"
 #include "panic.h"
 #include "kmalloc.h"
+#ifdef KFS_TEST_VMM
+#include "test.h"
+#endif
 
 static struct list_head free_list;              /* free kernel vblocks */
 static struct k_vblock objs[K_VBLOCK_MAX];
@@ -189,4 +192,9 @@ void vmm_init(void)
 {
     vb_init();
     vb_pool_init();
+    
+#ifdef KFS_TEST_VMM
+    test_vmm(&free_list);
+    test_done();
+#endif
 }

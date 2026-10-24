@@ -9,6 +9,9 @@
 #include "init.h"
 #include "signal.h"
 #include "tmp_syscall.h"
+#ifdef KFS_TEST_SIGNAL
+#include "test.h"
+#endif
 
 static void pgtab_init(void)
 {
@@ -129,5 +132,8 @@ void exec_fn(void (*func)())
 {
     cleanup_for_exec();
     vas_init(func);
+#ifdef KFS_TEST_SIGNAL
+    test_exec_hook();
+#endif
     enter_user_mode();
 }

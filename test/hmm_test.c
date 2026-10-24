@@ -26,10 +26,6 @@ static bool validate_pattern(void *ptr, char pattern, size_t size)
     return true;
 }
 
-/*
- * During this test, all signal–handling logic in the page-fault handler
- * must be disabled, as the test intentionally triggers page faults.
- */
 void test_malloc(void)
 {
     void **addrs;

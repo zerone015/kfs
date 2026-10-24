@@ -9,9 +9,8 @@
 #include "tmp_syscall.h"
 #include "signal.h"
 
-void init_process_code(void)
+void __attribute__((weak)) init_process_code(void)
 {
-    write("hi~");
 	while (true);
 }
 

@@ -149,10 +149,6 @@ static void test_case_various(struct list_head *vblocks,
     TEST_OK();
 }
 
-/*
- * During this test, all signal–handling logic in the page-fault handler
- * must be disabled, as the test intentionally triggers page faults.
- */
 void test_vmm(struct list_head *vblocks)
 {
     struct k_vblock *cur = list_first_entry(vblocks, typeof(*cur), list_head);

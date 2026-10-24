@@ -1,6 +1,11 @@
 #include "printk.h"
 #include "tmp_syscall.h"
 #include "errno.h"
+#include "test.h"
+
+#ifndef WAIT_EXIT_LOOPS
+#define WAIT_EXIT_LOOPS		10000000
+#endif
 
 static inline void __attribute__((always_inline)) fork_return_error(int pid)
 {
@@ -12,35 +17,24 @@ static inline void __attribute__((always_inline)) fork_return_error(int pid)
 	while (true);
 }
 
-static inline void __attribute__((always_inline)) success(void)
-{
-	write(KERN_DEBUG "OK\n");
-	while (true);
-}
-
 static inline void __attribute__((always_inline)) fail(void)
 {
 	write(KERN_ERR "Failed\n");
 	while (true);
 }
 
-static inline void __attribute__((always_inline)) if_reached_fail(void)
-{
-	fail();
-}
-
 void init_process_code(void)
 {
 	int pid, wait_pid, status;
 
-	write("wait and _exit stress test: ");
-	for (int i = 0; i < 10000000; i++) {
+	write("Test: wait and _exit stress: ");
+	for (int i = 0; i < WAIT_EXIT_LOOPS; i++) {
 		pid = fork();
 		if (pid < 0)
 			fork_return_error(pid);
 		if (pid == 0) {
 			exit(42);
-			if_reached_fail();
+			fail();
 		}
 		else {
 			wait_pid = wait(&status);
@@ -48,5 +42,7 @@ void init_process_code(void)
 				fail();
 		}
 	}
-	success();
+	write(KERN_DEBUG "OK\n");
+	write(TEST_DONE_MARKER);
+	while (true);
 }
